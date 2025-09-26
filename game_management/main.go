@@ -8,11 +8,70 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-func Init() error {
+var initialChannels map[string]models.GuildChannel
 
+func init() {
+	initialChannels = map[string]models.GuildChannel{
+		"game-instructions": {
+			Name:     "Game Instructions",
+			AppId:    "game-instructions",
+			Children: &[]models.GuildChannel{},
+		},
+		"the-town": {
+			Name:  "The Town",
+			AppId: "the-town",
+			Children: &[]models.GuildChannel{
+				{
+					Name:  "town-square",
+					AppId: "town-square",
+				},
+				{
+					Name:  "werewolves",
+					AppId: "werewolves",
+				},
+				{
+					Name:  "witch",
+					AppId: "witch",
+				},
+				{
+					Name:  fmt.Sprintf("seer-%s", uuid.New()), // TODO: add more seer channels on demand
+					AppId: "seer-1",
+				},
+				{
+					Name:  fmt.Sprintf("seer-%s", uuid.New()),
+					AppId: "seer-2",
+				},
+				{
+					Name:  "masons",
+					AppId: "masons",
+				},
+				{
+					Name:  "bodyguard",
+					AppId: "bodyguard",
+				},
+				{
+					Name:  fmt.Sprintf("lovers-%s", uuid.New()), // TODO: add more lovers channels on demand
+					AppId: "lovers-1",
+				},
+				{
+					Name:  fmt.Sprintf("lovers-%s", uuid.New()),
+					AppId: "lovers-2",
+				},
+			},
+		},
+		"admin": {
+			Name:     "Admin",
+			AppId:    "admin",
+			Children: &[]models.GuildChannel{},
+		},
+	}
+}
+
+func Setup() error {
 	lib.RegisterCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "init",
@@ -63,109 +122,57 @@ func initServer(i lib.Interaction) error {
 		return errors.Wrap(err, "Could not get current guild")
 	}
 
-	var guildRecord models.Guild
-	if result := lib.GormDB.Select(&guildRecord, "id = ?", guild.ID); result.Error != nil {
-		return errors.Wrap(result.Error, "Could not get guild record")
-	}
-
-	discordChannels, err := i.Channels()
-	if err != nil {
-		return errors.Wrap(err, "Could not get discord channels")
-	}
-
-	discordChannelNames := map[string]*discordgo.Channel{}
-	discordChannelIds := map[string]*discordgo.Channel{}
-	recordChannelNames := map[string]*models.GuildChannel{}
-	recordChannelIds := map[string]*models.GuildChannel{}
-	recordChannelAppIds := map[string]*models.GuildChannel{}
-
-	initialChannels := []models.GuildChannel{
-		{
-			Name:  "town-square",
-			AppId: "town-square",
-		},
-		{
-			Name:  "werewolves",
-			AppId: "werewolves",
-		},
-		{
-			Name:  "witch",
-			AppId: "witch",
-		},
-		{
-			Name:  fmt.Sprintf("seer-%s", uuid.New()), // TODO: add more seer channels on demand
-			AppId: "seer-1",
-		},
-		{
-			Name:  fmt.Sprintf("seer-%s", uuid.New()),
-			AppId: "seer-2",
-		},
-		{
-			Name:  "masons",
-			AppId: "masons",
-		},
-		{
-			Name:  "bodyguard",
-			AppId: "bodyguard",
-		},
-		{
-			Name:  fmt.Sprintf("lovers-%s", uuid.New()), // TODO: add more lovers channels on demand
-			AppId: "lovers-1",
-		},
-		{
-			Name:  fmt.Sprintf("lovers-%s", uuid.New()),
-			AppId: "lovers-2",
-		},
-	}
-
-	for _, channel := range discordChannels {
-		discordChannelNames[channel.Name] = channel
-		discordChannelIds[channel.ID] = channel
-	}
-
-	if guildRecord.Channels == nil {
-		guildRecord.Channels = make([]models.GuildChannel, 0)
-	}
-
-	for _, channel := range guildRecord.Channels {
-		recordChannelNames[channel.Name] = &channel
-		recordChannelIds[channel.Id] = &channel
-		recordChannelAppIds[channel.Id] = &channel
-	}
-
-	for _, ic := range initialChannels {
-		record, recordFound := recordChannelAppIds[ic.AppId]
-		if recordFound && record.Id != "" {
-			if _, ok := discordChannelIds[record.Id]; !ok {
-				if discordChannel, ok2 := discordChannelNames[record.Name]; ok2 {
-					record.Id = discordChannel.ID
-				} else {
-					newChannel, err := i.CreateChannel(ic.Name)
-					if err != nil {
-						return errors.Wrap(err, "Could not create channel")
-					}
-					record.Id = newChannel.ID
-					record.Name = newChannel.Name
-				}
-			}
+	var guildRecord *models.Guild
+	if result := lib.GormDB.Where("id = ?", guild.ID).First(&guildRecord); result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			guildRecord = nil
 		} else {
-			newChannel, err := i.CreateChannel(ic.Name)
-			if err != nil {
-				return errors.Wrap(err, "Could not create channel")
-			}
-			guildRecord.Channels = append(guildRecord.Channels, models.GuildChannel{
-				Name:  newChannel.Name,
-				Id:    newChannel.ID,
-				AppId: ic.AppId,
-			})
+			return errors.Wrap(result.Error, "Could not get guild record")
 		}
 	}
+	if guildRecord == nil {
+		guildRecord = &models.Guild{
+			Name: guild.Name,
+			Id:   guild.ID,
+		}
+	}
+
+	saveChannels := models.GuildChannels{}
+	for _, initChannel := range initialChannels {
+		discordCat, err := i.CreateCategoryChannel(initChannel.Name)
+		if err != nil {
+			return errors.Wrap(err, "Could not create category channel")
+		}
+		cat := models.GuildChannel{
+			Name:     initChannel.Name,
+			Id:       discordCat.ID,
+			AppId:    initChannel.AppId,
+			Children: &[]models.GuildChannel{},
+		}
+		var catChildren []models.GuildChannel
+		for _, child := range *initChannel.Children {
+			discordChannel, err := i.CreateTextChannel(child.Name, cat.Id)
+			if err != nil {
+				msg := fmt.Sprintf("Could not create text channel for child %s in guild %s", child.Name, guild.Name)
+				return errors.Wrap(err, msg)
+			}
+			catChildren = append(catChildren, models.GuildChannel{
+				Name:  child.Name,
+				AppId: child.AppId,
+				Id:    discordChannel.ID,
+			})
+		}
+		cat.Children = &catChildren
+		saveChannels[cat.AppId] = cat
+	}
+	guildRecord.Channels = saveChannels
 
 	result := lib.GormDB.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"name", "channels"}),
 	}).Create(&guildRecord)
 	if result.Error != nil {
+		err = result.Error
 		return errors.Wrap(result.Error, "Could not update guild record")
 	}
 	return nil

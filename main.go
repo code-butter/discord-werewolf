@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"discord-werewolf/game_management"
-	"embed"
 	"fmt"
 	"log"
 	"os"
@@ -16,55 +15,38 @@ import (
 	"github.com/bwmarrin/discordgo"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
-	"github.com/pressly/goose/v3"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-var db *sql.DB
-var discordClient *discordgo.Session
-var ctx = context.Background() // TODO: make this listen to signals
-
-//go:embed migrations/*.sql
-var embedMigrations embed.FS
-
 func main() {
+
+	ctx := context.Background() // TODO: tie this to signals
 
 	// Env vars
 	token := os.Getenv("DISCORD_TOKEN")
 	if token == "" {
-		log.Fatal("DISCORD_TOKEN environment variable not set")
+		fatal("DISCORD_TOKEN environment variable not set")
 	}
 
 	clientId := os.Getenv("CLIENT_ID")
 	if clientId == "" {
-		log.Fatal("CLIENT_ID environment variable not set")
+		fatal("CLIENT_ID environment variable not set")
 	}
 
 	var err error
 
 	// Database
+	var db *sql.DB
 	if db, err = sql.Open("sqlite3", os.Args[1]+"?_rt=on&_fk=on"); err != nil {
-		log.Fatal(errors.Wrap(err, "Could not connect to database"))
+		fatal(errors.Wrap(err, "Could not connect to database"))
 	}
 	defer db.Close()
-
-	// TODO: move this to an "upgrade" subcommand
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		log.Fatal(errors.Wrap(err, "Could not set goose dialect"))
-	}
-
-	// TODO: check if migrations are needed and back up database
-	goose.SetBaseFS(embedMigrations)
-	if err = goose.Up(db, "migrations"); err != nil {
-		log.Fatal(errors.Wrap(err, "Could not do auto-migrations"))
-	}
-
 	gormDB, err := gorm.Open(sqlite.New(sqlite.Config{
 		Conn: db,
 	}))
 	if err != nil {
-		log.Fatal(errors.Wrap(err, "Could not connect to database with Gorm"))
+		fatal(errors.Wrap(err, "Could not connect to database with Gorm"))
 	}
 
 	// Set up global services
@@ -72,13 +54,18 @@ func main() {
 	lib.Ctx = ctx
 	lib.GormDB = gormDB
 
+	// TODO: move this to an "upgrade" subcommand
+	lib.MigrateUp()
+
 	// Setup Discord
+	// TODO: maybe make a wrapper service for mock testing?
+	var discordClient *discordgo.Session
 	if discordClient, err = discordgo.New("Bot " + token); err != nil {
-		log.Fatal(err)
+		fatal(err)
 	}
 
-	if err = game_management.Init(); err != nil {
-		log.Fatal(err)
+	if err = game_management.Setup(); err != nil {
+		fatal(err)
 	}
 
 	commands := lib.GetCommands()
@@ -109,7 +96,7 @@ func main() {
 		}
 	})
 	if err = discordClient.Open(); err != nil {
-		log.Fatal(errors.Wrap(err, "Could not connect to Discord"))
+		fatal(errors.Wrap(err, "Could not connect to Discord"))
 	}
 	defer discordClient.Close()
 
@@ -123,7 +110,7 @@ func main() {
 	if len(globalCommands) > 0 {
 		_, err = discordClient.ApplicationCommandBulkOverwrite(clientId, "", globalCommands)
 		if err != nil {
-			log.Fatal(errors.Wrap(err, "Could not bulk overwrite global commands"))
+			fatal(errors.Wrap(err, "Could not bulk overwrite global commands"))
 		}
 	}
 
@@ -131,4 +118,9 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
+}
+
+func fatal(err interface{}) {
+	log.Printf("%+v\n", err)
+	os.Exit(1)
 }
