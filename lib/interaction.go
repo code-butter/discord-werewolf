@@ -1,8 +1,15 @@
 package lib
 
-import "github.com/bwmarrin/discordgo"
+import (
+	"fmt"
+
+	"github.com/bwmarrin/discordgo"
+	"github.com/pkg/errors"
+)
 
 type InteractionAction func(i Interaction) error
+
+// TODO: split this into smaller interfaces for different aspects?
 
 type Interaction interface {
 	// DeferredResponse Call this when potentially taking a long time to respond
@@ -30,18 +37,75 @@ type Interaction interface {
 	CreateCategoryChannel(name string) (*discordgo.Channel, error)
 
 	// GetRoles get all current roles for the guild.
-	GetRoles() (discordgo.Roles, error)
+	GetRoles() ([]*discordgo.Role, error)
 
 	// EnsureRoleCreated Created or updates role with color. Pass in roles from `GetRoles`.
 	EnsureRoleCreated(name string, color int, roles discordgo.Roles) error
 
 	// DeleteChannel Removes discord channel
 	DeleteChannel(id string) error
+
+	// AssignRole gives user a role
+	AssignRole(userId string, roleName string) error
+
+	AssignRoleToRequester(roleName string) error
+
+	// RemoveRole removes role from user
+	RemoveRole(userId string, roleName string) error
+
+	RemoveRoleFromRequester(roleName string) error
 }
+
+// TODO: make tests for live interaction with real discord server
 
 type LiveInteraction struct {
 	Session           *discordgo.Session
 	InteractionCreate *discordgo.InteractionCreate
+	RoleCache         InteractionCache[[]*discordgo.Role]
+}
+
+func (l LiveInteraction) GetRoles() ([]*discordgo.Role, error) {
+	if roles, ok := l.RoleCache.Get(l.InteractionCreate.GuildID); ok {
+		return *roles, nil
+	}
+	return l.Session.GuildRoles(l.InteractionCreate.GuildID)
+}
+
+func getRoleByName(l LiveInteraction, name string) (*discordgo.Role, error) {
+	roles, err := l.GetRoles()
+	if err != nil {
+		return nil, err
+	}
+	for _, role := range roles {
+		if role.Name == name {
+			return role, nil
+		}
+	}
+	return nil, errors.New(fmt.Sprintf("role not found: %s", name))
+}
+
+func (l LiveInteraction) AssignRole(userId string, roleName string) error {
+	role, err := getRoleByName(l, roleName)
+	if err != nil {
+		return err
+	}
+	return l.Session.GuildMemberRoleAdd(l.InteractionCreate.GuildID, userId, role.ID)
+}
+
+func (l LiveInteraction) AssignRoleToRequester(roleName string) error {
+	return l.AssignRole(l.InteractionCreate.Member.User.ID, roleName)
+}
+
+func (l LiveInteraction) RemoveRole(userId string, roleName string) error {
+	role, err := getRoleByName(l, roleName)
+	if err != nil {
+		return err
+	}
+	return l.Session.GuildMemberRoleRemove(l.InteractionCreate.GuildID, userId, role.ID)
+}
+
+func (l LiveInteraction) RemoveRoleFromRequester(roleName string) error {
+	return l.RemoveRole(l.InteractionCreate.Member.User.ID, roleName)
 }
 
 func (l LiveInteraction) DeferredResponse() error {
@@ -105,10 +169,6 @@ func (l LiveInteraction) CreateTextChannel(name string, parentId string) (*disco
 
 func (l LiveInteraction) CreateCategoryChannel(name string) (*discordgo.Channel, error) {
 	return l.Session.GuildChannelCreate(l.InteractionCreate.GuildID, name, discordgo.ChannelTypeGuildCategory)
-}
-
-func (l LiveInteraction) GetRoles() (discordgo.Roles, error) {
-	return l.Session.GuildRoles(l.InteractionCreate.GuildID)
 }
 
 func (l LiveInteraction) DeleteChannel(id string) error {

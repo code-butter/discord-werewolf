@@ -13,32 +13,42 @@ import (
 )
 
 var initialChannels map[string]models.GuildChannel
-var roles []WerewolfRole
+var roles map[string]WerewolfRole
 
 type WerewolfRole struct {
 	Name  string
 	Color int
 }
 
+const RolePlaying = "Playing"
+const RoleAlive = "Alive"
+const RoleDead = "Dead"
+const RoleAdmin = "Admin"
+
 func init() {
-	roles = []WerewolfRole{
+	rolesArray := []WerewolfRole{
 		{
-			Name:  "Playing",
+			Name:  RolePlaying,
 			Color: 0xFFDD81,
 		},
 		{
-			Name:  "Alive",
+			Name:  RoleAlive,
 			Color: 0x4ADC3D,
 		},
 		{
-			Name:  "Dead",
+			Name:  RoleDead,
 			Color: 0xBF0010,
 		},
 		{
-			Name:  "Admin",
+			Name:  RoleAdmin,
 			Color: 0x2025B7,
 		},
 	}
+	roles = map[string]WerewolfRole{}
+	for _, role := range rolesArray {
+		roles[role.Name] = role
+	}
+
 	initialChannels = map[string]models.GuildChannel{
 		"game-instructions": {
 			Name:     "Game Instructions",
@@ -237,9 +247,15 @@ func initServer(i lib.Interaction) error {
 }
 
 func playing(i lib.Interaction) error {
-	panic("Not yet implemented")
+	if err := i.AssignRoleToRequester(RolePlaying); err != nil {
+		return err
+	}
+	return i.Respond("Now playing!", false)
 }
 
 func stopPlaying(i lib.Interaction) error {
-	panic("Not yet implemented")
+	if err := i.RemoveRoleFromRequester(RolePlaying); err != nil {
+		return err
+	}
+	return i.Respond("Stopped playing.", false)
 }

@@ -14,6 +14,26 @@ type TestInteraction struct {
 	roles    []*discordgo.Role
 }
 
+func (d *TestInteraction) AssignRole(userId string, roleName string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *TestInteraction) AssignRoleToRequester(roleName string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *TestInteraction) RemoveRole(userId string, roleName string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *TestInteraction) RemoveRoleFromRequester(roleName string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (d *TestInteraction) GetRoles() (discordgo.Roles, error) {
 	return d.roles, nil
 }
