@@ -52,6 +52,20 @@ func TestServerInit(t *testing.T) {
 			}
 		}
 	}
+
+	discordRoles, _ := i.GetRoles()
+	for _, role := range roles {
+		roleFound := false
+		for _, discordRole := range discordRoles {
+			if discordRole.Name == role.Name {
+				roleFound = true
+				break
+			}
+		}
+		if !roleFound {
+			t.Errorf("Role %s not found", role.Name)
+		}
+	}
 }
 
 func verifyChannels(appId string, dbChannels iter.Seq[models.GuildChannel], discordChannels []*discordgo.Channel) (*models.GuildChannel, error) {

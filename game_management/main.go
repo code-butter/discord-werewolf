@@ -13,8 +13,32 @@ import (
 )
 
 var initialChannels map[string]models.GuildChannel
+var roles []WerewolfRole
+
+type WerewolfRole struct {
+	Name  string
+	Color int
+}
 
 func init() {
+	roles = []WerewolfRole{
+		{
+			Name:  "Playing",
+			Color: 0xFFDD81,
+		},
+		{
+			Name:  "Alive",
+			Color: 0x4ADC3D,
+		},
+		{
+			Name:  "Dead",
+			Color: 0xBF0010,
+		},
+		{
+			Name:  "Admin",
+			Color: 0x2025B7,
+		},
+	}
 	initialChannels = map[string]models.GuildChannel{
 		"game-instructions": {
 			Name:     "Game Instructions",
@@ -99,7 +123,20 @@ func Setup() error {
 		Respond: stopPlaying,
 	})
 
+	lib.RegisterCommand(lib.Command{
+		ApplicationCommand: &discordgo.ApplicationCommand{
+			Name:        "ping",
+			Description: "Pings the server. Responds with 'pong'.",
+		},
+		Global:  true,
+		Respond: ping,
+	})
+
 	return nil
+}
+
+func ping(i lib.Interaction) error {
+	return i.Respond("Pong!", false)
 }
 
 func initServer(i lib.Interaction) error {
@@ -136,6 +173,17 @@ func initServer(i lib.Interaction) error {
 			Id:   guild.ID,
 		}
 	}
+
+	////////////////////////////////////////
+	// TODO: REMOVE THIS BEFORE PROD DEPLOY
+	discordChannels, err := i.Channels()
+
+	for _, channel := range discordChannels {
+		if err = i.DeleteChannel(channel.ID); err != nil {
+			return errors.Wrap(err, "Could not delete channel")
+		}
+	}
+	////////////////////////////////////////
 
 	saveChannels := models.GuildChannels{}
 	for _, initChannel := range initialChannels {
@@ -174,6 +222,16 @@ func initServer(i lib.Interaction) error {
 	if result.Error != nil {
 		err = result.Error
 		return errors.Wrap(result.Error, "Could not update guild record")
+	}
+
+	guildRoles, err := i.GetRoles()
+	if err != nil {
+		return errors.Wrap(err, "Could not get guild roles")
+	}
+	for _, role := range roles {
+		if err = i.EnsureRoleCreated(role.Name, role.Color, guildRoles); err != nil {
+			return errors.Wrap(err, fmt.Sprintf("Could not create role %s", role.Name))
+		}
 	}
 	return nil
 }

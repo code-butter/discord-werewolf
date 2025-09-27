@@ -28,6 +28,15 @@ type Interaction interface {
 
 	// CreateCategoryChannel Creates a channel category
 	CreateCategoryChannel(name string) (*discordgo.Channel, error)
+
+	// GetRoles get all current roles for the guild.
+	GetRoles() (discordgo.Roles, error)
+
+	// EnsureRoleCreated Created or updates role with color. Pass in roles from `GetRoles`.
+	EnsureRoleCreated(name string, color int, roles discordgo.Roles) error
+
+	// DeleteChannel Removes discord channel
+	DeleteChannel(id string) error
 }
 
 type LiveInteraction struct {
@@ -96,4 +105,37 @@ func (l LiveInteraction) CreateTextChannel(name string, parentId string) (*disco
 
 func (l LiveInteraction) CreateCategoryChannel(name string) (*discordgo.Channel, error) {
 	return l.Session.GuildChannelCreate(l.InteractionCreate.GuildID, name, discordgo.ChannelTypeGuildCategory)
+}
+
+func (l LiveInteraction) GetRoles() (discordgo.Roles, error) {
+	return l.Session.GuildRoles(l.InteractionCreate.GuildID)
+}
+
+func (l LiveInteraction) DeleteChannel(id string) error {
+	_, err := l.Session.ChannelDelete(id)
+	return err
+}
+
+func (l LiveInteraction) EnsureRoleCreated(name string, color int, roles discordgo.Roles) error {
+	var foundRole *discordgo.Role
+	for _, role := range roles {
+		if name == role.Name && color == role.Color {
+			return nil
+		} else if name == role.Name {
+			foundRole = role
+			break
+		}
+	}
+	var err error
+	if foundRole != nil {
+		_, err = l.Session.GuildRoleEdit(l.InteractionCreate.GuildID, foundRole.ID, &discordgo.RoleParams{
+			Color: &color,
+		})
+	} else {
+		_, err = l.Session.GuildRoleCreate(l.InteractionCreate.GuildID, &discordgo.RoleParams{
+			Name:  name,
+			Color: &color,
+		})
+	}
+	return err
 }

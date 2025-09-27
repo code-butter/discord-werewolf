@@ -11,6 +11,9 @@ type Command struct {
 }
 
 func RegisterCommand(c Command) {
+	if _, ok := commands[c.Name]; ok {
+		panic("Command " + c.Name + " already registered")
+	}
 	commands[c.Name] = c
 }
 

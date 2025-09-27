@@ -1,6 +1,8 @@
 package testlib
 
 import (
+	"errors"
+
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
 )
@@ -9,6 +11,40 @@ type TestInteraction struct {
 	guildId  string
 	name     string
 	channels []*discordgo.Channel
+	roles    []*discordgo.Role
+}
+
+func (d *TestInteraction) GetRoles() (discordgo.Roles, error) {
+	return d.roles, nil
+}
+
+func (d *TestInteraction) EnsureRoleCreated(name string, color int, _ discordgo.Roles) error {
+	for _, role := range d.roles {
+		if role.Name == name {
+			role.Color = color
+			return nil
+		}
+	}
+	d.roles = append(d.roles, &discordgo.Role{
+		Name:  name,
+		Color: color,
+	})
+	return nil
+}
+
+func (d *TestInteraction) DeleteChannel(id string) error {
+	idx := -1
+	for i, channel := range d.channels {
+		if channel.ID == id {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		return errors.New("channel not found")
+	}
+	d.channels = append(d.channels[:idx], d.channels[idx+1:]...)
+	return nil
 }
 
 func NewTestInteraction(guildId string, name string, channels []*discordgo.Channel) *TestInteraction {
