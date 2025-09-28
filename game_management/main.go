@@ -111,8 +111,9 @@ func Setup() error {
 			Name:        "init",
 			Description: "Initializes the server. Wipes out any data previously stored.",
 		},
-		Global:  true,
-		Respond: initServer,
+		Global:      true,
+		Respond:     initServer,
+		Authorizers: []lib.CommandAuthorizer{isAdmin},
 	})
 
 	lib.RegisterCommand(lib.Command{

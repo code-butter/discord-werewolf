@@ -6,9 +6,12 @@ var commands = map[string]Command{}
 
 type Command struct {
 	*discordgo.ApplicationCommand
-	Global  bool // Does not have any server-specific parameters
-	Respond InteractionAction
+	Global      bool // Does not have any server/game specific parameters
+	Respond     InteractionAction
+	Authorizers []CommandAuthorizer
 }
+
+type CommandAuthorizer func(i Interaction) (bool, error)
 
 func RegisterCommand(c Command) {
 	if _, ok := commands[c.Name]; ok {

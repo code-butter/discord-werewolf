@@ -7,11 +7,49 @@ import (
 	"github.com/google/uuid"
 )
 
+func NewTestInteraction(guildId string, name string, options TestInteractionOptions) *TestInteraction {
+	return &TestInteraction{
+		guildId:    guildId,
+		name:       name,
+		channels:   options.Channels,
+		guildRoles: options.GuildRoles,
+		requester:  options.Requester,
+		owner:      options.Owner,
+	}
+}
+
+type TestInteractionOptions struct {
+	Channels   []*discordgo.Channel
+	GuildRoles []*discordgo.Role
+	UserRoles  []*discordgo.Role
+	Owner      *discordgo.User
+	Requester  *discordgo.User
+}
+
 type TestInteraction struct {
-	guildId  string
-	name     string
-	channels []*discordgo.Channel
-	roles    []*discordgo.Role
+	guildId    string
+	name       string
+	channels   []*discordgo.Channel
+	guildRoles []*discordgo.Role
+	userRoles  []*discordgo.Role
+	owner      *discordgo.User
+	requester  *discordgo.User
+}
+
+func (d *TestInteraction) Requester() *discordgo.User {
+	return d.Requester()
+}
+func (d *TestInteraction) GetRoles() ([]*discordgo.Role, error) {
+	return d.guildRoles, nil
+}
+
+func (d *TestInteraction) RequesterHasRole(roleName string) (bool, error) {
+	for _, role := range d.userRoles {
+		if role.Name == roleName {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (d *TestInteraction) AssignRole(userId string, roleName string) error {
@@ -34,18 +72,14 @@ func (d *TestInteraction) RemoveRoleFromRequester(roleName string) error {
 	panic("implement me")
 }
 
-func (d *TestInteraction) GetRoles() (discordgo.Roles, error) {
-	return d.roles, nil
-}
-
 func (d *TestInteraction) EnsureRoleCreated(name string, color int, _ discordgo.Roles) error {
-	for _, role := range d.roles {
+	for _, role := range d.guildRoles {
 		if role.Name == name {
 			role.Color = color
 			return nil
 		}
 	}
-	d.roles = append(d.roles, &discordgo.Role{
+	d.guildRoles = append(d.guildRoles, &discordgo.Role{
 		Name:  name,
 		Color: color,
 	})
@@ -65,14 +99,6 @@ func (d *TestInteraction) DeleteChannel(id string) error {
 	}
 	d.channels = append(d.channels[:idx], d.channels[idx+1:]...)
 	return nil
-}
-
-func NewTestInteraction(guildId string, name string, channels []*discordgo.Channel) *TestInteraction {
-	return &TestInteraction{
-		guildId:  guildId,
-		name:     name,
-		channels: channels,
-	}
 }
 
 func (d *TestInteraction) DeferredResponse() error {

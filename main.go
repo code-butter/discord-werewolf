@@ -79,19 +79,36 @@ func main() {
 			}
 			commandName := i.ApplicationCommandData().Name
 			if cmd, ok := commands[commandName]; ok {
+				if len(cmd.Authorizers) > 0 {
+					authorized := false
+					for _, auth := range cmd.Authorizers {
+						a, err := auth(interaction)
+						if err != nil {
+							errorRespond(interaction, fmt.Sprintf("Could not authorize command: %s", err.Error()))
+							return
+						}
+						if a {
+							authorized = true
+							break
+						}
+					}
+					if !authorized {
+						if err = interaction.Respond("unauthorized", true); err != nil {
+							log.Println(err)
+						}
+					}
+				}
 				if cmd.Respond == nil {
-					log.Printf("Command has no Respond method: %s\n", commandName)
+					errorRespond(interaction, fmt.Sprintf("Command has no Respond method: %s\n", commandName))
+					return
 				}
 				if err = cmd.Respond(interaction); err != nil {
-					log.Println(err)
+					errorRespond(interaction, err.Error())
+					return
 				}
 			} else {
-				msg := fmt.Sprintf("Unknown command: %s", commandName)
-				log.Println(msg)
-				err = interaction.Respond(msg, true)
-				if err != nil {
-					log.Println(err)
-				}
+				errorRespond(interaction, fmt.Sprintf("Unknown command: %s", commandName))
+				return
 			}
 		}
 	})
@@ -118,6 +135,11 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
+}
+
+func errorRespond(i lib.LiveInteraction, message string) {
+	log.Println(message)
+	_ = i.Respond("There was a system error.", true)
 }
 
 func fatal(err interface{}) {

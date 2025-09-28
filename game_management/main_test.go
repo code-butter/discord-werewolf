@@ -21,7 +21,14 @@ func TestServerInit(t *testing.T) {
 
 	guildId := uuid.NewString()
 	guildName := "Test Guild"
-	i := testlib.NewTestInteraction(guildId, guildName, make([]*discordgo.Channel, 0))
+
+	owner := &discordgo.User{
+		ID: "owner",
+	}
+	i := testlib.NewTestInteraction(guildId, guildName, testlib.TestInteractionOptions{
+		Owner:     owner,
+		Requester: owner,
+	})
 	if err := initServer(i); err != nil {
 		t.Fatal(err)
 	}

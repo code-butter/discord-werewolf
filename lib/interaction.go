@@ -45,6 +45,8 @@ type Interaction interface {
 	// DeleteChannel Removes discord channel
 	DeleteChannel(id string) error
 
+	// TODO: the mix of global/per-user
+
 	// AssignRole gives user a role
 	AssignRole(userId string, roleName string) error
 
@@ -54,6 +56,9 @@ type Interaction interface {
 	RemoveRole(userId string, roleName string) error
 
 	RemoveRoleFromRequester(roleName string) error
+
+	RequesterHasRole(roleName string) (bool, error)
+	Requester() *discordgo.User
 }
 
 // TODO: make tests for live interaction with real discord server
@@ -62,6 +67,23 @@ type LiveInteraction struct {
 	Session           *discordgo.Session
 	InteractionCreate *discordgo.InteractionCreate
 	RoleCache         InteractionCache[[]*discordgo.Role]
+}
+
+func (l LiveInteraction) Requester() *discordgo.User {
+	return l.InteractionCreate.User
+}
+
+func (l LiveInteraction) RequesterHasRole(roleName string) (bool, error) {
+	role, err := getRoleByName(l, roleName)
+	if err != nil {
+		return false, err
+	}
+	for _, roleId := range l.InteractionCreate.Member.Roles {
+		if roleId == role.ID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (l LiveInteraction) GetRoles() ([]*discordgo.Role, error) {
