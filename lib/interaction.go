@@ -13,7 +13,7 @@ type InteractionAction func(i Interaction) error
 
 type Interaction interface {
 	// DeferredResponse Call this when potentially taking a long time to respond
-	DeferredResponse() error
+	DeferredResponse(msg string, ephemeral bool) error
 
 	// FollowupMessage Call this after doing potentially long operation
 	FollowupMessage(message string, ephemeral bool) error
@@ -59,6 +59,7 @@ type Interaction interface {
 
 	RequesterHasRole(roleName string) (bool, error)
 	Requester() *discordgo.User
+	CommandData() discordgo.ApplicationCommandInteractionData
 }
 
 // TODO: make tests for live interaction with real discord server
@@ -69,8 +70,12 @@ type LiveInteraction struct {
 	RoleCache         InteractionCache[[]*discordgo.Role]
 }
 
+func (l LiveInteraction) CommandData() discordgo.ApplicationCommandInteractionData {
+	return l.InteractionCreate.ApplicationCommandData()
+}
+
 func (l LiveInteraction) Requester() *discordgo.User {
-	return l.InteractionCreate.User
+	return l.InteractionCreate.Member.User
 }
 
 func (l LiveInteraction) RequesterHasRole(roleName string) (bool, error) {
@@ -130,9 +135,17 @@ func (l LiveInteraction) RemoveRoleFromRequester(roleName string) error {
 	return l.RemoveRole(l.InteractionCreate.Member.User.ID, roleName)
 }
 
-func (l LiveInteraction) DeferredResponse() error {
+func (l LiveInteraction) DeferredResponse(msg string, ephemeral bool) error {
+	var flags discordgo.MessageFlags
+	if ephemeral {
+		flags = discordgo.MessageFlagsEphemeral
+	}
 	return l.Session.InteractionRespond(l.InteractionCreate.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: msg,
+			Flags:   flags,
+		},
 	})
 }
 

@@ -1,11 +1,13 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TABLE guild_users (
-    id INTEGER,
-    guild_id INTEGER,
+CREATE TABLE guild_characters (
+    id VARCHAR(75),
+    guild_id VARCHAR(75),
     character_id INTEGER,
-    secondary_character_mask INTEGER,
-    status INTEGER,
+    secondary_character_id INTEGER,
+    game_status INTEGER,
+    effect_mask INTEGER,
+    extra_data TEXT,
     PRIMARY KEY (id, guild_id),
     FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
 );
@@ -13,5 +15,5 @@ CREATE TABLE guild_users (
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE guild_users
+DROP TABLE guild_characters;
 -- +goose StatementEnd

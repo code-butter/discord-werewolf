@@ -1,4 +1,4 @@
-package game_management
+package guild_management
 
 import (
 	"discord-werewolf/lib"
@@ -61,7 +61,7 @@ func TestServerInit(t *testing.T) {
 	}
 
 	discordRoles, _ := i.GetRoles()
-	for _, role := range roles {
+	for _, role := range lib.Roles {
 		roleFound := false
 		for _, discordRole := range discordRoles {
 			if discordRole.Name == role.Name {

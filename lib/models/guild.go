@@ -4,12 +4,20 @@ import (
 	"database/sql/driver"
 	"discord-werewolf/lib"
 	"encoding/json"
+	"time"
 )
 
 type Guild struct {
-	Id       string `gorm:"primary_key"`
-	Name     string
-	Channels GuildChannels
+	Id           string `gorm:"primary_key"`
+	Name         string
+	Channels     GuildChannels
+	Paused       bool
+	GameGoing    bool
+	DayNight     bool
+	TimeZone     string
+	DayTime      *TimeOnly
+	NightTime    *TimeOnly
+	LastCycleRan *time.Time `gorm:"type:datetime"`
 }
 type GuildChannel struct {
 	Id       string

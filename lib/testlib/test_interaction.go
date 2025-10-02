@@ -36,6 +36,11 @@ type TestInteraction struct {
 	requester  *discordgo.User
 }
 
+func (d *TestInteraction) CommandData() discordgo.ApplicationCommandInteractionData {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (d *TestInteraction) Requester() *discordgo.User {
 	return d.Requester()
 }
