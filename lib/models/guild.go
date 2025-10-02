@@ -17,6 +17,7 @@ type Guild struct {
 	TimeZone     string
 	DayTime      *TimeOnly
 	NightTime    *TimeOnly
+	GameSettings JsonMap
 	LastCycleRan *time.Time `gorm:"type:datetime"`
 }
 type GuildChannel struct {

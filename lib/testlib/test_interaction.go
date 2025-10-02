@@ -36,6 +36,10 @@ type TestInteraction struct {
 	requester  *discordgo.User
 }
 
+func (d *TestInteraction) DeferredResponse(string, bool) error {
+	return nil
+}
+
 func (d *TestInteraction) CommandData() discordgo.ApplicationCommandInteractionData {
 	//TODO implement me
 	panic("implement me")
@@ -103,10 +107,6 @@ func (d *TestInteraction) DeleteChannel(id string) error {
 		return errors.New("channel not found")
 	}
 	d.channels = append(d.channels[:idx], d.channels[idx+1:]...)
-	return nil
-}
-
-func (d *TestInteraction) DeferredResponse() error {
 	return nil
 }
 

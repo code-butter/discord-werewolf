@@ -60,6 +60,8 @@ type Interaction interface {
 	RequesterHasRole(roleName string) (bool, error)
 	Requester() *discordgo.User
 	CommandData() discordgo.ApplicationCommandInteractionData
+	GuildMembers() ([]*discordgo.Member, error)
+	GuildMembersWithRole(roleName string) ([]*discordgo.Member, error)
 }
 
 // TODO: make tests for live interaction with real discord server
@@ -68,6 +70,45 @@ type LiveInteraction struct {
 	Session           *discordgo.Session
 	InteractionCreate *discordgo.InteractionCreate
 	RoleCache         InteractionCache[[]*discordgo.Role]
+}
+
+func (l LiveInteraction) GuildMembersWithRole(roleName string) ([]*discordgo.Member, error) {
+	members, err := l.GuildMembers()
+	if err != nil {
+		return nil, err
+	}
+	role, err := getRoleByName(l, roleName)
+	if err != nil {
+		return nil, err
+	}
+	roleMembers := make([]*discordgo.Member, 0)
+	for _, member := range members {
+		for _, r := range member.Roles {
+			if r == role.ID {
+				roleMembers = append(roleMembers, member)
+				break
+			}
+		}
+	}
+	return roleMembers, nil
+}
+
+func (l LiveInteraction) GuildMembers() ([]*discordgo.Member, error) {
+	var members []*discordgo.Member
+	afterId := ""
+	for {
+		batch, err := l.Session.GuildMembers(l.GuildId(), afterId, 1000)
+		if err != nil {
+			return nil, err
+		}
+		batchLen := len(batch)
+		members = append(members, batch...)
+		if batchLen < 1000 {
+			break
+		}
+		afterId = batch[batchLen-1].User.ID
+	}
+	return members, nil
 }
 
 func (l LiveInteraction) CommandData() discordgo.ApplicationCommandInteractionData {

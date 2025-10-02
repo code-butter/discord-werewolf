@@ -1,15 +1,5 @@
 package models
 
-import (
-	"database/sql/driver"
-	"discord-werewolf/lib"
-	"encoding/json"
-)
-
-const GameStatusPlaying = 1
-const GameStatusAlive = 2
-const GameStatusDead = 3
-
 const EffectInjured = 1
 const EffectStunned = 2
 const EffectMuted = 4
@@ -32,24 +22,11 @@ const CharacterChaosDemon = 11
 const CharacterVampireKing = 12
 
 type GuildCharacter struct {
-	Id                   int `gorm:"primaryKey"`
-	GuildId              int `gorm:"primaryKey"`
+	Id                   string `gorm:"primaryKey"`
+	GuildId              string `gorm:"primaryKey"`
 	CharacterId          int
 	SecondaryCharacterId int
 	GameStatus           int
 	EffectMask           int
-	ExtraData            CharacterExtraData
-}
-
-type CharacterExtraData map[string]interface{}
-
-func (m CharacterExtraData) Value() (driver.Value, error) {
-	return json.Marshal(m)
-}
-func (m *CharacterExtraData) Scan(value interface{}) error {
-	return lib.UnMarshalBytes(m, value)
-}
-
-func (m CharacterExtraData) GormDataType() string {
-	return "character_extra_data"
+	ExtraData            JsonMap
 }
