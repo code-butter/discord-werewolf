@@ -26,7 +26,6 @@ type GuildCharacter struct {
 	GuildId              string `gorm:"primaryKey"`
 	CharacterId          int
 	SecondaryCharacterId int
-	GameStatus           int
 	EffectMask           int
 	ExtraData            JsonMap
 }

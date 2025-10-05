@@ -1,13 +1,13 @@
 package lib
 
-func IsAdmin(i Interaction) (bool, error) {
-	guild, err := i.Guild()
+func IsAdmin(ia *InteractionArgs) (bool, error) {
+	guild, err := ia.Session.Guild()
 	if err != nil {
 		return false, err
 	}
-	requester := i.Requester()
+	requester := ia.Interaction.Requester()
 	if requester.ID == guild.OwnerID {
 		return true, nil
 	}
-	return i.RequesterHasRole(RoleAdmin)
+	return ia.Interaction.RequesterHasRole(RoleAdmin)
 }

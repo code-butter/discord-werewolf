@@ -1,9 +1,9 @@
 package models
 
 import (
-	"database/sql/driver"
-	"discord-werewolf/lib"
-	"encoding/json"
+	"iter"
+	"maps"
+	"slices"
 	"time"
 )
 
@@ -20,22 +20,22 @@ type Guild struct {
 	GameSettings JsonMap
 	LastCycleRan *time.Time `gorm:"type:datetime"`
 }
-type GuildChannel struct {
-	Id       string
-	Name     string
-	AppId    string
-	Children *[]GuildChannel
+
+func findChannel(appId string, channels iter.Seq[GuildChannel]) *GuildChannel {
+	if channels == nil {
+		return nil
+	}
+	for c := range channels {
+		if c.AppId == appId {
+			return &c
+		}
+		if c.Children != nil {
+			return findChannel(appId, slices.Values(*c.Children))
+		}
+	}
+	return nil
 }
 
-type GuildChannels map[string]GuildChannel
-
-func (m GuildChannels) Value() (driver.Value, error) {
-	return json.Marshal(m)
-}
-func (m *GuildChannels) Scan(value interface{}) error {
-	return lib.UnMarshalBytes(m, value)
-}
-
-func (m GuildChannels) GormDataType() string {
-	return "guild_channels"
+func (m Guild) ChannelById(appId string) *GuildChannel {
+	return findChannel(appId, maps.Values(m.Channels))
 }

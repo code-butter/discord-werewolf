@@ -11,7 +11,7 @@ type Command struct {
 	Authorizers []CommandAuthorizer
 }
 
-type CommandAuthorizer func(i Interaction) (bool, error)
+type CommandAuthorizer func(ia *InteractionArgs) (bool, error)
 
 func RegisterCommand(c Command) {
 	if _, ok := commands[c.Name]; ok {

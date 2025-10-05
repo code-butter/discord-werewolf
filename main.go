@@ -51,16 +51,12 @@ func main() {
 		fatal(errors.Wrap(err, "Could not connect to database with Gorm"))
 	}
 
-	// Set up global services
-	lib.DB = db
-	lib.Ctx = ctx
-	lib.GormDB = gormDB
-
 	// TODO: move this to an "upgrade" subcommand
-	lib.MigrateUp()
+	if err = lib.MigrateUp(db); err != nil {
+		fatal(errors.Wrap(err, "Could not apply migrations"))
+	}
 
 	// Setup Discord
-	// TODO: maybe make a wrapper service for mock testing?
 	var discordClient *discordgo.Session
 	if discordClient, err = discordgo.New("Bot " + token); err != nil {
 		fatal(err)
@@ -78,16 +74,20 @@ func main() {
 	discordClient.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		var err error
 		if i.Type == discordgo.InteractionApplicationCommand {
-			interaction := lib.LiveInteraction{
-				Session:           s,
-				InteractionCreate: i,
-			}
 			commandName := i.ApplicationCommandData().Name
+			interaction := lib.NewLiveInteraction(s, i)
 			if cmd, ok := commands[commandName]; ok {
+				interactionArgs := &lib.InteractionArgs{
+					Interaction: interaction,
+					Session:     lib.NewLiveDiscordSession(i.GuildID, s),
+					DB:          db,
+					GormDB:      gormDB,
+					Ctx:         ctx,
+				}
 				if len(cmd.Authorizers) > 0 {
 					authorized := false
 					for _, auth := range cmd.Authorizers {
-						a, err := auth(interaction)
+						a, err := auth(interactionArgs)
 						if err != nil {
 							errorRespond(interaction, fmt.Sprintf("Could not authorize command: %s", err.Error()))
 							return
@@ -98,7 +98,7 @@ func main() {
 						}
 					}
 					if !authorized {
-						if err = interaction.Respond("unauthorized", true); err != nil {
+						if err = interactionArgs.Interaction.Respond("unauthorized", true); err != nil {
 							log.Println(err)
 						}
 					}
@@ -107,7 +107,7 @@ func main() {
 					errorRespond(interaction, fmt.Sprintf("Command has no Respond method: %s\n", commandName))
 					return
 				}
-				if err = cmd.Respond(interaction); err != nil {
+				if err = cmd.Respond(interactionArgs); err != nil {
 					errorRespond(interaction, err.Error())
 					return
 				}
@@ -149,7 +149,7 @@ func main() {
 	<-c
 }
 
-func TimedDayNight(ctx context.Context, session *discordgo.Session) {
+func TimedDayNight(ctx context.Context, session *discordgo.Session, gormDB *gorm.DB) {
 	var err error
 
 	systemTz, err := lib.SystemTimeZone()
@@ -163,7 +163,7 @@ func TimedDayNight(ctx context.Context, session *discordgo.Session) {
 		cutoff := time.Now().UTC().Add(-23*time.Hour + 59*time.Minute)
 		now := time.Now().UTC()
 		var guilds []models.Guild
-		if result := lib.GormDB.Where("game_going = 1 AND paused = 0").Find(&guilds); result.Error != nil {
+		if result := gormDB.Where("game_going = 1 AND paused = 0").Find(&guilds); result.Error != nil {
 			panic(result.Error)
 		}
 		var finishedGuildIds []string
@@ -223,9 +223,9 @@ func TimedDayNight(ctx context.Context, session *discordgo.Session) {
 				}
 			}
 		}
-		_, err = gorm.G[models.Guild](lib.GormDB).
+		_, err = gorm.G[models.Guild](gormDB).
 			Where("id in ?", finishedGuildIds).
-			Update(lib.Ctx, "last_cycle_ran", now)
+			Update(ctx, "last_cycle_ran", now)
 		if err != nil {
 			fatal(err)
 		}
@@ -233,7 +233,7 @@ func TimedDayNight(ctx context.Context, session *discordgo.Session) {
 	}
 }
 
-func errorRespond(i lib.LiveInteraction, message string) {
+func errorRespond(i lib.Interaction, message string) {
 	log.Println(message)
 	_ = i.Respond("There was a system error.", true)
 }
