@@ -35,9 +35,9 @@ type Interaction interface {
 
 // TODO: make tests for live interaction with real discord server
 
-func NewLiveInteraction(session *discordgo.Session, interaction *discordgo.InteractionCreate) Interaction {
+func NewLiveInteraction(interaction *discordgo.InteractionCreate) Interaction {
 	return LiveInteraction{
-		session:     NewLiveDiscordSession(interaction.GuildID, session),
+		session:     GetGuildDiscordSession(interaction.GuildID),
 		interaction: interaction,
 	}
 }

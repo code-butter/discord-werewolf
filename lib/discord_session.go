@@ -9,6 +9,10 @@ import (
 )
 
 // TODO: implement retry-after logic for API limits and service outages
+// TODO: add context listener for application shutdown
+
+var botConnection *discordgo.Session
+var mapLock = NewMapLock[*GuildDiscordSession]()
 
 type DiscordSession interface {
 	// Guild gets the server's guild object
@@ -57,21 +61,32 @@ type DiscordSession interface {
 	DeleteChannelOverridePermissions(channelId string, id string) error
 }
 
-func NewLiveDiscordSession(guildId string, session *discordgo.Session) LiveDiscordSession {
-	return LiveDiscordSession{session: session, guildID: guildId}
+func SetBotConnection(c *discordgo.Session) {
+	botConnection = c
 }
 
-type LiveDiscordSession struct {
+func GetGuildDiscordSession(guildId string) *GuildDiscordSession {
+	value, _ := mapLock.GetOrSet(guildId, func() (*GuildDiscordSession, error) {
+		return &GuildDiscordSession{
+			guildID:   guildId,
+			session:   botConnection,
+			roleCache: &InteractionCache[[]*discordgo.Role]{},
+		}, nil
+	})
+	return value
+}
+
+type GuildDiscordSession struct {
 	session   *discordgo.Session
 	guildID   string
-	roleCache InteractionCache[[]*discordgo.Role]
+	roleCache *InteractionCache[[]*discordgo.Role]
 }
 
-func (l LiveDiscordSession) DeleteChannelOverridePermissions(channelId string, id string) error {
+func (l *GuildDiscordSession) DeleteChannelOverridePermissions(channelId string, id string) error {
 	return l.session.ChannelPermissionDelete(channelId, id)
 }
 
-func (l LiveDiscordSession) RoleChannelPermissions(channelId string, roleId string, allow, deny int64) error {
+func (l *GuildDiscordSession) RoleChannelPermissions(channelId string, roleId string, allow, deny int64) error {
 	return l.session.ChannelPermissionSet(
 		channelId,
 		roleId,
@@ -81,7 +96,7 @@ func (l LiveDiscordSession) RoleChannelPermissions(channelId string, roleId stri
 	)
 }
 
-func (l LiveDiscordSession) UserChannelPermissions(channelId string, roleId string, allow, deny int64) error {
+func (l *GuildDiscordSession) UserChannelPermissions(channelId string, roleId string, allow, deny int64) error {
 	return l.session.ChannelPermissionSet(
 		channelId,
 		roleId,
@@ -91,7 +106,7 @@ func (l LiveDiscordSession) UserChannelPermissions(channelId string, roleId stri
 	)
 }
 
-func (l LiveDiscordSession) ClearChannelMessages(channelId string) error {
+func (l *GuildDiscordSession) ClearChannelMessages(channelId string) error {
 	const maxMessages = 100
 	const fourteenDays = 14 * 24 * time.Hour
 	var before string
@@ -127,26 +142,26 @@ func (l LiveDiscordSession) ClearChannelMessages(channelId string) error {
 	}
 }
 
-func (l LiveDiscordSession) InteractionRespond(interaction *discordgo.Interaction, response *discordgo.InteractionResponse) error {
+func (l *GuildDiscordSession) InteractionRespond(interaction *discordgo.Interaction, response *discordgo.InteractionResponse) error {
 	return l.session.InteractionRespond(interaction, response)
 }
 
-func (l LiveDiscordSession) FollowupMessage(interaction *discordgo.Interaction, params *discordgo.WebhookParams) error {
+func (l *GuildDiscordSession) FollowupMessage(interaction *discordgo.Interaction, params *discordgo.WebhookParams) error {
 	_, err := l.session.FollowupMessageCreate(interaction, false, params)
 	return err
 }
 
-func (l LiveDiscordSession) Message(channelId string, message string) error {
+func (l *GuildDiscordSession) Message(channelId string, message string) error {
 	_, err := l.session.ChannelMessageSend(channelId, message)
 	return err
 }
 
-func (l LiveDiscordSession) MessageEmbed(channelId string, embed *discordgo.MessageEmbed) error {
+func (l *GuildDiscordSession) MessageEmbed(channelId string, embed *discordgo.MessageEmbed) error {
 	_, err := l.session.ChannelMessageSendEmbed(channelId, embed)
 	return err
 }
 
-func (l LiveDiscordSession) GuildMembers() ([]*discordgo.Member, error) {
+func (l *GuildDiscordSession) GuildMembers() ([]*discordgo.Member, error) {
 	var members []*discordgo.Member
 	afterId := ""
 	for {
@@ -164,14 +179,14 @@ func (l LiveDiscordSession) GuildMembers() ([]*discordgo.Member, error) {
 	return members, nil
 }
 
-func (l LiveDiscordSession) GetRoles() ([]*discordgo.Role, error) {
+func (l *GuildDiscordSession) GetRoles() ([]*discordgo.Role, error) {
 	if roles, ok := l.roleCache.Get(l.guildID); ok {
 		return *roles, nil
 	}
 	return l.session.GuildRoles(l.guildID)
 }
 
-func (l LiveDiscordSession) GetRoleByName(name string) (*discordgo.Role, error) {
+func (l *GuildDiscordSession) GetRoleByName(name string) (*discordgo.Role, error) {
 	roles, err := l.GetRoles()
 	if err != nil {
 		return nil, err
@@ -184,7 +199,7 @@ func (l LiveDiscordSession) GetRoleByName(name string) (*discordgo.Role, error) 
 	return nil, errors.New(fmt.Sprintf("role not found: %s", name))
 }
 
-func (l LiveDiscordSession) AssignRole(userId string, roleName string) error {
+func (l *GuildDiscordSession) AssignRole(userId string, roleName string) error {
 	role, err := l.GetRoleByName(roleName)
 	if err != nil {
 		return err
@@ -192,7 +207,7 @@ func (l LiveDiscordSession) AssignRole(userId string, roleName string) error {
 	return l.session.GuildMemberRoleAdd(l.guildID, userId, role.ID)
 }
 
-func (l LiveDiscordSession) GuildMembersWithRole(roleName string) ([]*discordgo.Member, error) {
+func (l *GuildDiscordSession) GuildMembersWithRole(roleName string) ([]*discordgo.Member, error) {
 	members, err := l.GuildMembers()
 	if err != nil {
 		return nil, err
@@ -213,7 +228,7 @@ func (l LiveDiscordSession) GuildMembersWithRole(roleName string) ([]*discordgo.
 	return roleMembers, nil
 }
 
-func (l LiveDiscordSession) RemoveRole(userId string, roleName string) error {
+func (l *GuildDiscordSession) RemoveRole(userId string, roleName string) error {
 	role, err := l.GetRoleByName(roleName)
 	if err != nil {
 		return err
@@ -221,7 +236,7 @@ func (l LiveDiscordSession) RemoveRole(userId string, roleName string) error {
 	return l.session.GuildMemberRoleRemove(l.guildID, userId, role.ID)
 }
 
-func (l LiveDiscordSession) Guild() (*discordgo.Guild, error) {
+func (l *GuildDiscordSession) Guild() (*discordgo.Guild, error) {
 	guild, err := l.session.State.Guild(l.guildID)
 	if err != nil {
 		guild, err = l.session.Guild(l.guildID)
@@ -232,11 +247,11 @@ func (l LiveDiscordSession) Guild() (*discordgo.Guild, error) {
 	return guild, nil
 }
 
-func (l LiveDiscordSession) Channels() ([]*discordgo.Channel, error) {
+func (l *GuildDiscordSession) Channels() ([]*discordgo.Channel, error) {
 	return l.session.GuildChannels(l.guildID)
 }
 
-func (l LiveDiscordSession) CreateTextChannel(name string, parentId string) (*discordgo.Channel, error) {
+func (l *GuildDiscordSession) CreateTextChannel(name string, parentId string) (*discordgo.Channel, error) {
 	return l.session.GuildChannelCreateComplex(l.guildID, discordgo.GuildChannelCreateData{
 		Name:     name,
 		ParentID: parentId,
@@ -244,16 +259,16 @@ func (l LiveDiscordSession) CreateTextChannel(name string, parentId string) (*di
 	})
 }
 
-func (l LiveDiscordSession) CreateCategoryChannel(name string) (*discordgo.Channel, error) {
+func (l *GuildDiscordSession) CreateCategoryChannel(name string) (*discordgo.Channel, error) {
 	return l.session.GuildChannelCreate(l.guildID, name, discordgo.ChannelTypeGuildCategory)
 }
 
-func (l LiveDiscordSession) DeleteChannel(id string) error {
+func (l *GuildDiscordSession) DeleteChannel(id string) error {
 	_, err := l.session.ChannelDelete(id)
 	return err
 }
 
-func (l LiveDiscordSession) EnsureRoleCreated(name string, color int, roles discordgo.Roles) error {
+func (l *GuildDiscordSession) EnsureRoleCreated(name string, color int, roles discordgo.Roles) error {
 	var foundRole *discordgo.Role
 	for _, role := range roles {
 		if name == role.Name && color == role.Color {

@@ -17,7 +17,7 @@ func Setup() error {
 	lib.RegisterCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "kill",
-			Description: "Vote for a user to kill come day time",
+			Description: "Vote for a user to kill over night",
 			Options: []*discordgo.ApplicationCommandOption{
 				{
 					Type:        discordgo.ApplicationCommandOptionUser,
@@ -32,6 +32,7 @@ func Setup() error {
 	})
 
 	listeners.GameStartListeners.Add(startGameListener)
+	listeners.DayStartListeners.Add(killVillagers)
 
 	return nil
 }
@@ -40,7 +41,7 @@ func canKill(args *lib.InteractionArgs) (bool, error) {
 	var result *gorm.DB
 	var character models.GuildCharacter
 	result = args.GormDB.
-		Where("guild_id = ? AND user_id = ?", args.Interaction.GuildId(), args.Interaction.Requester().ID).
+		Where("guild_id = ? AND id = ?", args.Interaction.GuildId(), args.Interaction.Requester().ID).
 		First(&character)
 	if result.Error != nil {
 		return false, result.Error
@@ -59,9 +60,13 @@ func voteKill(args *lib.InteractionArgs) error {
 	requesterId := args.Interaction.Requester().ID
 	result = args.GormDB.
 		Where("guild_id = ? AND user_id = ?", guildId, requesterId).
-		Find(&vote)
+		First(&vote)
 	if result.Error != nil {
-		return result.Error
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			vote = nil
+		} else {
+			return errors.Wrap(result.Error, "failed to find vote")
+		}
 	}
 	if vote == nil {
 		vote = &WerewolfKillVote{
@@ -71,12 +76,13 @@ func voteKill(args *lib.InteractionArgs) error {
 		}
 		result = args.GormDB.Create(vote)
 	} else {
+		vote.VotingForId = args.Interaction.CommandData().GetOption("user").Value.(string)
 		result = args.GormDB.Model(&vote).
-			Where("guild_id = ? AND user_id = ?").
+			Where("guild_id = ? AND user_id = ?", guildId, requesterId).
 			Updates(vote)
 	}
 	if result.Error != nil {
-		return result.Error
+		return errors.Wrap(result.Error, "failed to save vote")
 	}
 	msg := fmt.Sprintf("Voted to kill <@%s>", vote.VotingForId)
 	return args.Interaction.Respond(msg, false)
@@ -95,15 +101,71 @@ func startGameListener(s *lib.ServiceArgs, data listeners.GameStartData) error {
 			if err = s.Session.UserChannelPermissions(wolvesChannel.Id, character.Id, postPermissions, 0); err != nil {
 				return errors.Wrap(err, "could not set post permissions for wolf channel")
 			}
-			wolfMentions = append(wolfMentions, fmt.Sprintf("<@%x>", character.Id))
+			wolfMentions = append(wolfMentions, fmt.Sprintf("<@%s>", character.Id))
 		}
 	}
 	msg := heredoc.Doc(`
-		Welcome to the werewolf channel! Talk to your fellow werewolves and mark your next target with the /kill command at night to eat the villagers. Each werewolf can mark their own target. If the werewolf target do not match the werewolf bot will choose the villager to be eaten.
+		Welcome to the werewolf channel! Talk to your fellow werewolves and mark your next target with the ` + "`/kill`" + ` command at night to eat the villagers. Each werewolf can mark their own target. If the werewolf target do not match the werewolf bot will choose the villager to be eaten.
 		
 		Werewolves:
 	`)
 	wolfMsg := strings.Join(wolfMentions, ", ")
 	return s.Session.Message(wolvesChannel.Id, msg+wolfMsg)
+}
+func killVillagers(s *lib.ServiceArgs, data listeners.DayStartData) error {
+	var err error
+	var result *gorm.DB
+	townChannel := data.Guild.ChannelByAppId(models.ChannelTownSquare)
+	if townChannel == nil {
+		return errors.New("No town channel found for guild " + data.Guild.Id)
+	}
+	var voted string
+	result = s.GormDB.
+		Model(&WerewolfKillVote{}).
+		Select("voting_for_id").
+		Group("voting_for_id").
+		Order("COUNT(*) DESC").
+		Where("guild_id = ?", data.Guild.Id).
+		Limit(1).
+		Pluck("voting_for_id", &voted)
+	if result.Error != nil {
+		msg := fmt.Sprintf("Could not get votes for guild %s with ID %s", data.Guild.Name, data.Guild.Id)
+		return errors.Wrap(result.Error, msg)
+	}
 
+	if voted == "" {
+		msg := &discordgo.MessageEmbed{
+			Type:        discordgo.EmbedTypeRich,
+			Title:       "No one died last night.",
+			Description: "What a bunch of lazy wolves.",
+		}
+		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
+			return errors.Wrap(err, "Could not send town channel message")
+		}
+	} else {
+		var character models.GuildCharacter
+		result = s.GormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).First(&character)
+		if result.Error != nil {
+			return errors.Wrap(result.Error, "Could not find character with ID "+voted)
+		}
+		if err = s.Session.RemoveRole(voted, "Alive"); err != nil {
+			return errors.Wrap(err, "Could not remove Alive role")
+		}
+		if err = s.Session.AssignRole(voted, "Dead"); err != nil {
+			return errors.Wrap(err, "Could not assign Dead role")
+		}
+		msg := &discordgo.MessageEmbed{
+			Type:        discordgo.EmbedTypeRich,
+			Title:       fmt.Sprintf("Last night, <@%s> died.", voted),
+			Description: "They were killed by a werewolf attack!",
+		}
+		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
+			return errors.Wrap(err, "Could not send town channel message")
+		}
+		character.ExtraData["death_cause"] = "wolf"
+		if result = s.GormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).Save(&character); result.Error != nil {
+			return errors.Wrap(result.Error, "Could not update character with ID "+voted)
+		}
+	}
+	return nil
 }

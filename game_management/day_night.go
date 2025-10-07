@@ -1,27 +1,58 @@
 package game_management
 
 import (
-	"context"
 	"discord-werewolf/lib"
+	"discord-werewolf/lib/listeners"
 	"discord-werewolf/lib/models"
 	"log"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
 
-func StartDay(guildId string, session *discordgo.Session) error {
+func StartDay(guildId string, s lib.ServiceArgs) error {
+	var err error
+	var result *gorm.DB
+	var guild models.Guild
+	if result = s.GormDB.Where("id = ?", guildId).First(&guild); result.Error != nil {
+		return errors.Wrap(result.Error, "Guild not found")
+	}
+	err = listeners.DayStartListeners.Trigger(&s, listeners.DayStartData{
+		Guild: guild,
+	})
+	if err != nil {
+		return errors.Wrap(err, "Failed to start day from triggers")
+	}
+	guild.DayNight = true
+	if result = s.GormDB.Save(&guild); result.Error != nil {
+		return errors.Wrap(result.Error, "Could not save guild")
+	}
 
 	return nil
 }
 
-func StartNight(guildId string, session *discordgo.Session) error {
-
+func StartNight(guildId string, s lib.ServiceArgs) error {
+	var err error
+	var result *gorm.DB
+	var guild models.Guild
+	if result = s.GormDB.Where("id = ?", guildId).First(&guild); result.Error != nil {
+		return errors.Wrap(result.Error, "Guild not found")
+	}
+	err = listeners.NightStartListeners.Trigger(&s, listeners.NightStartData{
+		Guild: guild,
+	})
+	if err != nil {
+		return errors.Wrap(err, "Failed to start night from triggers")
+	}
+	guild.DayNight = false
+	if result = s.GormDB.Save(&guild); result.Error != nil {
+		return errors.Wrap(result.Error, "Could not save guild")
+	}
 	return nil
 }
 
-func TimedDayNight(ctx context.Context, session *discordgo.Session, gormDB *gorm.DB) {
+func TimedDayNight(s lib.ServiceArgs) {
 	var err error
 
 	systemTz, err := lib.SystemTimeZone()
@@ -31,11 +62,11 @@ func TimedDayNight(ctx context.Context, session *discordgo.Session, gormDB *gorm
 		systemTz = time.UTC
 	}
 
-	for ctx.Err() == nil {
+	for s.Ctx.Err() == nil {
 		cutoff := time.Now().UTC().Add(-23*time.Hour + 59*time.Minute)
 		now := time.Now().UTC()
 		var guilds []models.Guild
-		if result := gormDB.Where("game_going = 1 AND paused = 0").Find(&guilds); result.Error != nil {
+		if result := s.GormDB.Where("game_going = 1 AND paused = 0").Find(&guilds); result.Error != nil {
 			panic(result.Error)
 		}
 		var finishedGuildIds []string
@@ -44,11 +75,13 @@ func TimedDayNight(ctx context.Context, session *discordgo.Session, gormDB *gorm
 			if lastCycleRan == nil {
 				lastCycleRan = &now
 			}
+			guildServiceArgs := s
+			guildServiceArgs.Session = lib.GetGuildDiscordSession(guild.Id)
 			if lastCycleRan.Before(cutoff) {
 				if guild.DayNight {
-					err = StartNight(guild.Id, session)
+					err = StartNight(guild.Id, guildServiceArgs)
 				} else {
-					err = StartDay(guild.Id, session)
+					err = StartDay(guild.Id, guildServiceArgs)
 				}
 				if err != nil {
 					log.Println(err)
@@ -74,7 +107,7 @@ func TimedDayNight(ctx context.Context, session *discordgo.Session, gormDB *gorm
 					nightTime = &models.TimeOnly{Time: &newNightTime}
 				}
 				if nightTime.BeforeOrOn(now) && nightTime.AfterOrOn(*lastCycleRan) {
-					if err = StartNight(guild.Id, session); err != nil {
+					if err = StartNight(guild.Id, guildServiceArgs); err != nil {
 						log.Println(err)
 						continue
 					}
@@ -87,7 +120,7 @@ func TimedDayNight(ctx context.Context, session *discordgo.Session, gormDB *gorm
 					dayTime = &models.TimeOnly{Time: &newDayTime}
 				}
 				if dayTime.BeforeOrOn(now) && dayTime.AfterOrOn(*lastCycleRan) {
-					if err = StartDay(guild.Id, session); err != nil {
+					if err = StartDay(guild.Id, s); err != nil {
 						log.Println(err)
 						continue
 					}
@@ -95,12 +128,12 @@ func TimedDayNight(ctx context.Context, session *discordgo.Session, gormDB *gorm
 				}
 			}
 		}
-		_, err = gorm.G[models.Guild](gormDB).
+		_, err = gorm.G[models.Guild](s.GormDB).
 			Where("id in ?", finishedGuildIds).
-			Update(ctx, "last_cycle_ran", now)
+			Update(s.Ctx, "last_cycle_ran", now)
 		if err != nil {
 			lib.Fatal(err)
 		}
-		time.Sleep(time.Minute * 5)
+		time.Sleep(time.Second * 15)
 	}
 }

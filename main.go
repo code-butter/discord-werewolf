@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	_ "github.com/mattn/go-sqlite3"
@@ -22,7 +23,8 @@ import (
 
 func main() {
 
-	ctx := context.Background() // TODO: tie this to signals
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	// Env vars
 	token := os.Getenv("DISCORD_TOKEN")
@@ -42,6 +44,7 @@ func main() {
 		lib.Fatal(errors.Wrap(err, "Could not connect to database"))
 	}
 	defer db.Close()
+
 	gormDB, err := gorm.Open(sqlite.New(sqlite.Config{
 		Conn: db,
 	}))
@@ -59,28 +62,32 @@ func main() {
 	if discordClient, err = discordgo.New("Bot " + token); err != nil {
 		lib.Fatal(err)
 	}
+	lib.SetBotConnection(discordClient)
 
-	if err = game_management.Setup(); err != nil {
+	// Setup sections. Keep in mind that order is incredibly important here. Callbacks will be run in the order they
+	// are set up in these functions.
+
+	if err = guild_management.Setup(); err != nil {
 		lib.Fatal(err)
 	}
-	if err = guild_management.Setup(); err != nil {
+	if err = game_management.Setup(); err != nil {
 		lib.Fatal(err)
 	}
 	if err = werewolves.Setup(); err != nil {
 		lib.Fatal(err)
 	}
 
+	// Discord handlers
 	commands := lib.GetCommands()
-
 	discordClient.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		var err error
 		if i.Type == discordgo.InteractionApplicationCommand {
 			commandName := i.ApplicationCommandData().Name
-			interaction := lib.NewLiveInteraction(s, i)
+			interaction := lib.NewLiveInteraction(i)
 			if cmd, ok := commands[commandName]; ok {
 				interactionArgs := &lib.InteractionArgs{
 					ServiceArgs: &lib.ServiceArgs{
-						Session: lib.NewLiveDiscordSession(i.GuildID, s),
+						Session: lib.GetGuildDiscordSession(i.GuildID),
 						GormDB:  gormDB,
 						Ctx:     ctx,
 					},
@@ -143,12 +150,19 @@ func main() {
 		lib.Fatal(errors.Wrap(err, "Could not get system time zone"))
 	}
 
+	// Start timers
+	go game_management.TimedDayNight(lib.ServiceArgs{
+		Session: nil, // This will be set when calling start night/day functions
+		GormDB:  gormDB,
+		Ctx:     ctx,
+	})
+
 	log.Printf("System timezone: %s\n", currentTz)
 
 	log.Println("Bot is now running.  Press CTRL-C to exit.")
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	<-c
+	<-ctx.Done()
+	log.Println("Shutting down...")
+	time.Sleep(5 * time.Second)
 }
 
 func errorRespond(i lib.Interaction, message string) {

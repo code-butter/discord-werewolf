@@ -4,6 +4,7 @@ import (
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/listeners"
 	"discord-werewolf/lib/models"
+	"fmt"
 	"math/rand"
 
 	"github.com/bwmarrin/discordgo"
@@ -43,6 +44,26 @@ func Setup() error {
 
 	lib.RegisterCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
+			Name:        "day_time",
+			Description: "Triggers day for the current game",
+		},
+		Global:      true,
+		Respond:     triggerDay,
+		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
+	})
+
+	lib.RegisterCommand(lib.Command{
+		ApplicationCommand: &discordgo.ApplicationCommand{
+			Name:        "night_time",
+			Description: "Triggers night for the current game",
+		},
+		Global:      true,
+		Respond:     triggerNight,
+		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
+	})
+
+	lib.RegisterCommand(lib.Command{
+		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "vote",
 			Description: "Vote to hang. Leave off the target if you wish to unvote.",
 			Options: []*discordgo.ApplicationCommandOption{
@@ -59,7 +80,89 @@ func Setup() error {
 		Authorizers: []lib.CommandAuthorizer{canVote},
 	})
 
+	listeners.NightStartListeners.Add(hangCharacters)
+
 	return nil
+}
+
+func triggerNight(args *lib.InteractionArgs) error {
+	err := args.Interaction.DeferredResponse("Triggering night...", true)
+	if err != nil {
+		return err
+	}
+	if err = StartNight(args.Interaction.GuildId(), *args.ServiceArgs); err != nil {
+		return err
+	}
+	return args.Interaction.FollowupMessage("Night triggered!", true)
+}
+
+func triggerDay(args *lib.InteractionArgs) error {
+	err := args.Interaction.DeferredResponse("Triggering day...", true)
+	if err != nil {
+		return err
+	}
+	if err = StartDay(args.Interaction.GuildId(), *args.ServiceArgs); err != nil {
+		return err
+	}
+	return args.Interaction.FollowupMessage("Day triggered!", true)
+}
+
+func hangCharacters(s *lib.ServiceArgs, data listeners.NightStartData) error {
+	var err error
+	var result *gorm.DB
+	townChannel := data.Guild.ChannelByAppId(models.ChannelTownSquare)
+	if townChannel == nil {
+		return errors.New("No town channel found for guild " + data.Guild.Id)
+	}
+	var voted string
+	result = s.GormDB.
+		Model(&models.GuildVote{}).
+		Select("voting_for_id").
+		Group("voting_for_id").
+		Order("COUNT(*) DESC").
+		Where("guild_id = ?", data.Guild.Id).
+		Limit(1).
+		Pluck("voting_for_id", &voted)
+	if result.Error != nil {
+		msg := fmt.Sprintf("Could not get votes for guild %s with ID %s", data.Guild.Name, data.Guild.Id)
+		return errors.Wrap(result.Error, msg)
+	}
+
+	if voted == "" {
+		msg := &discordgo.MessageEmbed{
+			Type:        discordgo.EmbedTypeRich,
+			Title:       "No one voted.",
+			Description: "No one was hanged.",
+		}
+		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
+			return errors.Wrap(err, "Could not send town channel message")
+		}
+	} else {
+		var character models.GuildCharacter
+		result = s.GormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).First(&character)
+		if result.Error != nil {
+			return errors.Wrap(result.Error, "Could not find character with ID "+voted)
+		}
+		if err = s.Session.RemoveRole(voted, "Alive"); err != nil {
+			return errors.Wrap(err, "Could not remove Alive role")
+		}
+		if err = s.Session.AssignRole(voted, "Dead"); err != nil {
+			return errors.Wrap(err, "Could not assign Dead role")
+		}
+		msg := &discordgo.MessageEmbed{
+			Type:  discordgo.EmbedTypeRich,
+			Title: fmt.Sprintf("The town has hanged <@%s>.", voted),
+		}
+		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
+			return errors.Wrap(err, "Could not send town channel message")
+		}
+		character.ExtraData["death_cause"] = "hanged"
+		if result = s.GormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).Save(&character); result.Error != nil {
+			return errors.Wrap(result.Error, "Could not update character with ID "+voted)
+		}
+	}
+	_, err = gorm.G[models.GuildVote](s.GormDB).Where("guild_id = ?", data.Guild.Id).Delete(s.Ctx)
+	return err
 }
 
 func canVote(ia *lib.InteractionArgs) (bool, error) {
@@ -71,25 +174,33 @@ func voteFor(ia *lib.InteractionArgs) error {
 	// TODO: check if vote should happen
 	guildId := ia.Interaction.GuildId()
 	userId := ia.Interaction.Requester().ID
-	voteForId := ia.Interaction.CommandData().GetOption("target").Value.(string)
+	voteForId := ia.Interaction.CommandData().GetOption("user").Value.(string)
 
 	if voteForId == "" {
 		_, err := gorm.G[models.GuildVote](ia.GormDB).
 			Where("guild_id = ? AND user_id = ?", guildId, userId).
 			Delete(ia.Ctx)
-		return err
-	} else {
-		vote := models.GuildVote{
-			GuildId:     ia.Interaction.GuildId(),
-			UserId:      ia.Interaction.Requester().ID,
-			VotingForId: voteForId,
+		if err != nil {
+			return err
 		}
-		result := ia.GormDB.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "guild_id"}, {Name: "user_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"name", "channels"}),
-		}).Create(&vote)
+		msg := fmt.Sprintf("<@%s> has removed their vote.", userId)
+		return ia.Interaction.Respond(msg, false)
+	}
+
+	vote := models.GuildVote{
+		GuildId:     ia.Interaction.GuildId(),
+		UserId:      ia.Interaction.Requester().ID,
+		VotingForId: voteForId,
+	}
+	result := ia.GormDB.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "guild_id"}, {Name: "user_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"voting_for_id"}),
+	}).Create(&vote)
+	if result.Error != nil {
 		return result.Error
 	}
+	msg := fmt.Sprintf("<@%s> has voted for <@%s>", userId, voteForId)
+	return ia.Interaction.Respond(msg, false)
 }
 
 // TODO: implement different game modes

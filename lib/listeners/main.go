@@ -35,7 +35,9 @@ type DayStartData struct {
 	Guild models.Guild
 }
 type CharacterDeathData struct {
-	Guild models.Guild
+	Guild  models.Guild
+	Target models.GuildCharacter
+	Cause  string
 }
 
 var GameStartListeners *listenerTracker[GameStartData]
