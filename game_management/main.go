@@ -2,6 +2,7 @@ package game_management
 
 import (
 	"discord-werewolf/lib"
+	"discord-werewolf/lib/listeners"
 	"discord-werewolf/lib/models"
 	"math/rand"
 
@@ -92,6 +93,7 @@ func voteFor(ia *lib.InteractionArgs) error {
 }
 
 // TODO: implement different game modes
+// TODO: enable scheduled start
 func startGame(ia *lib.InteractionArgs) error {
 	var err error
 	if err = ia.Interaction.DeferredResponse("Starting game...", true); err != nil {
@@ -114,9 +116,22 @@ func startGame(ia *lib.InteractionArgs) error {
 	if result = ia.GormDB.Where("guild_id = ?", ia.Interaction.GuildId()).Delete(&models.GuildVote{}); result.Error != nil {
 		return result.Error
 	}
+
+	// Clear town channels
+	catTown := guild.ChannelByAppId(models.CatChannelTheTown)
+	for _, channel := range *catTown.Children {
+		if err = ia.Session.ClearChannelMessages(channel.Id); err != nil {
+			return err
+		}
+	}
+
 	players, err := ia.Session.GuildMembersWithRole(lib.RolePlaying)
 	if err != nil {
 		return err
+	}
+
+	if len(players) == 0 {
+		return ia.Interaction.FollowupMessage("Nobody is playing!", true)
 	}
 
 	// Randomly mix players
@@ -144,18 +159,7 @@ func startGame(ia *lib.InteractionArgs) error {
 		return result.Error
 	}
 
-	// TODO: extract this out to wolves' module with a start game listener/callback
-	wolvesChannel := guild.ChannelById(models.ChannelWerewolves)
-	var postPermissions int64 = discordgo.PermissionViewChannel | discordgo.PermissionSendMessages
-	if wolvesChannel == nil {
-		return errors.New("could not find wolves channel")
-	}
 	for _, character := range characters {
-		if character.CharacterId == models.CharacterWolf {
-			if err = ia.Session.UserChannelPermissions(wolvesChannel.Id, character.Id, postPermissions, 0); err != nil {
-				return errors.Wrap(err, "could not set post permissions")
-			}
-		}
 		if err = ia.Session.RemoveRole(character.Id, lib.RolePlaying); err != nil {
 			return errors.Wrap(err, "could not remove playing role from user")
 		}
@@ -163,6 +167,25 @@ func startGame(ia *lib.InteractionArgs) error {
 			return errors.Wrap(err, "could not assign alive role to user")
 		}
 	}
+
+	err = listeners.GameStartListeners.Trigger(ia.ServiceArgs, listeners.GameStartData{
+		Guild:      *guild,
+		Characters: characters,
+	})
+	if err != nil {
+		return err
+	}
+
+	townChannel := guild.ChannelByAppId(models.ChannelTownSquare)
+	if townChannel == nil {
+		return errors.New("could not find town square channel")
+	}
+
+	err = ia.Session.Message(townChannel.Id, "Welcome to the town-square! Here you will vote for who you think the werewolves are.")
+	if err != nil {
+		return errors.Wrap(err, "could not send welcome message to town square")
+	}
+
 	err = ia.Interaction.FollowupMessage("Game started", true)
 	if err != nil {
 		return errors.Wrap(err, "could not follow up message")

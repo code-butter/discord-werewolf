@@ -2,10 +2,13 @@ package lib
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/pkg/errors"
 )
+
+// TODO: implement retry-after logic for API limits and service outages
 
 type DiscordSession interface {
 	// Guild gets the server's guild object
@@ -88,8 +91,40 @@ func (l LiveDiscordSession) UserChannelPermissions(channelId string, roleId stri
 	)
 }
 
-func (l LiveDiscordSession) ClearChannelMessages(id string) error {
-	panic("implement me")
+func (l LiveDiscordSession) ClearChannelMessages(channelId string) error {
+	const maxMessages = 100
+	const fourteenDays = 14 * 24 * time.Hour
+	var before string
+	for {
+		messages, err := l.session.ChannelMessages(channelId, maxMessages, before, "", "")
+		if err != nil {
+			return err
+		}
+		if len(messages) == 0 {
+			return nil
+		}
+		var bulkDelete []string
+		for _, message := range messages {
+			if time.Since(message.Timestamp) < fourteenDays {
+				bulkDelete = append(bulkDelete, message.ID)
+			} else {
+				if err = l.session.ChannelMessageDelete(message.ChannelID, message.ID); err != nil {
+					return err
+				}
+			}
+		}
+		toDeleteCount := len(bulkDelete)
+		if toDeleteCount > 1 {
+			if err = l.session.ChannelMessagesBulkDelete(channelId, bulkDelete); err != nil {
+				return err
+			}
+		} else if toDeleteCount == 1 {
+			if err = l.session.ChannelMessageDelete(channelId, bulkDelete[0]); err != nil {
+				return err
+			}
+		}
+		before = messages[len(messages)-1].ID
+	}
 }
 
 func (l LiveDiscordSession) InteractionRespond(interaction *discordgo.Interaction, response *discordgo.InteractionResponse) error {

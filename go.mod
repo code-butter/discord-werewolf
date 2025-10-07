@@ -12,6 +12,7 @@ require (
 )
 
 require (
+	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/go-set/v3 v3.0.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect

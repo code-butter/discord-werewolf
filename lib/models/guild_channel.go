@@ -15,6 +15,10 @@ const ChannelMasons = "masons"
 const ChannelBodyguard = "bodyguard"
 const ChannelAfterLife = "after-life"
 
+const CatChannelTheTown = "the-town"
+const CatChannelInstructions = "game-instructions"
+const CatChannelAdmin = "admin"
+
 // Used for AppIds on channels with possibly multiple
 
 const ChannelSeerPrefix = "seer-"

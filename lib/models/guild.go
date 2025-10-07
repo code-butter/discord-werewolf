@@ -36,6 +36,6 @@ func findChannel(appId string, channels iter.Seq[GuildChannel]) *GuildChannel {
 	return nil
 }
 
-func (m Guild) ChannelById(appId string) *GuildChannel {
+func (m Guild) ChannelByAppId(appId string) *GuildChannel {
 	return findChannel(appId, maps.Values(m.Channels))
 }

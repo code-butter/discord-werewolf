@@ -22,12 +22,12 @@ func init() {
 	initialChannels = map[string]models.GuildChannel{
 		"game-instructions": {
 			Name:     "Game Instructions",
-			AppId:    "game-instructions",
+			AppId:    models.CatChannelInstructions,
 			Children: &[]models.GuildChannel{},
 		},
 		"the-town": {
 			Name:  "The Town",
-			AppId: "the-town",
+			AppId: models.CatChannelTheTown,
 			Children: &[]models.GuildChannel{
 				{
 					Name:  models.ChannelTownSquare,
@@ -73,7 +73,7 @@ func init() {
 		},
 		"admin": {
 			Name:     "Admin",
-			AppId:    "admin",
+			AppId:    models.CatChannelAdmin,
 			Children: &[]models.GuildChannel{},
 		},
 	}
@@ -190,13 +190,14 @@ func setTimeZone(ia *lib.InteractionArgs) error {
 		_ = ia.Interaction.Respond("Unable to set timezone", true)
 		return err
 	}
-	_, err = ia.DB.ExecContext(ia.Ctx, "UPDATE guilds SET time_zone = ? WHERE id = ?", tzName, ia.Interaction.GuildId())
+	err = gorm.G[any](ia.GormDB).
+		Exec(ia.Ctx, "UPDATE guilds SET time_zone = ? WHERE id = ?", tzName, ia.Interaction.GuildId())
 	if err != nil {
 		_ = ia.Interaction.Respond("Unable to set timezone", true)
 		return err
 	}
-	_ = ia.Interaction.Respond(fmt.Sprintf("Set timezone to %s", tzName), true)
-	return nil
+	return ia.Interaction.Respond(fmt.Sprintf("Set timezone to %s", tzName), true)
+
 }
 
 func ping(ia *lib.InteractionArgs) error {

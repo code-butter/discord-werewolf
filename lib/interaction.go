@@ -1,19 +1,12 @@
 package lib
 
 import (
-	"context"
-	"database/sql"
-
 	"github.com/bwmarrin/discordgo"
-	"gorm.io/gorm"
 )
 
 type InteractionArgs struct {
+	*ServiceArgs
 	Interaction Interaction
-	Session     DiscordSession
-	DB          *sql.DB
-	GormDB      *gorm.DB
-	Ctx         context.Context
 }
 
 type InteractionAction func(*InteractionArgs) error
