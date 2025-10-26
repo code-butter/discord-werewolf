@@ -10,11 +10,12 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/bwmarrin/discordgo"
 	"github.com/pkg/errors"
+	"github.com/samber/do"
 	"gorm.io/gorm"
 )
 
 func Setup() error {
-	lib.RegisterCommand(lib.Command{
+	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "kill",
 			Description: "Vote for a user to kill over night",
@@ -26,7 +27,7 @@ func Setup() error {
 					Required:    false,
 				},
 			}},
-		Global:      true,
+
 		Respond:     voteKill,
 		Authorizers: []lib.CommandAuthorizer{canKill},
 	})
@@ -37,11 +38,13 @@ func Setup() error {
 	return nil
 }
 
-func canKill(args *lib.InteractionArgs) (bool, error) {
+func canKill(ia *lib.InteractionArgs) (bool, error) {
 	var result *gorm.DB
 	var character models.GuildCharacter
-	result = args.GormDB.
-		Where("guild_id = ? AND id = ?", args.Interaction.GuildId(), args.Interaction.Requester().ID).
+
+	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
+	result = gormDB.
+		Where("guild_id = ? AND id = ?", ia.Interaction.GuildId(), ia.Interaction.Requester().ID).
 		First(&character)
 	if result.Error != nil {
 		return false, result.Error
@@ -52,13 +55,14 @@ func canKill(args *lib.InteractionArgs) (bool, error) {
 	return true, nil
 }
 
-func voteKill(args *lib.InteractionArgs) error {
+func voteKill(ia *lib.InteractionArgs) error {
 	// TODO: figure out how to accurately track double kill ability
 	var result *gorm.DB
+	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
 	var vote *WerewolfKillVote
-	guildId := args.Interaction.GuildId()
-	requesterId := args.Interaction.Requester().ID
-	result = args.GormDB.
+	guildId := ia.Interaction.GuildId()
+	requesterId := ia.Interaction.Requester().ID
+	result = gormDB.
 		Where("guild_id = ? AND user_id = ?", guildId, requesterId).
 		First(&vote)
 	if result.Error != nil {
@@ -72,12 +76,12 @@ func voteKill(args *lib.InteractionArgs) error {
 		vote = &WerewolfKillVote{
 			GuildId:     guildId,
 			UserId:      requesterId,
-			VotingForId: args.Interaction.CommandData().GetOption("user").Value.(string),
+			VotingForId: ia.Interaction.CommandData().GetOption("user").Value.(string),
 		}
-		result = args.GormDB.Create(vote)
+		result = gormDB.Create(vote)
 	} else {
-		vote.VotingForId = args.Interaction.CommandData().GetOption("user").Value.(string)
-		result = args.GormDB.Model(&vote).
+		vote.VotingForId = ia.Interaction.CommandData().GetOption("user").Value.(string)
+		result = gormDB.Model(&vote).
 			Where("guild_id = ? AND user_id = ?", guildId, requesterId).
 			Updates(vote)
 	}
@@ -85,10 +89,10 @@ func voteKill(args *lib.InteractionArgs) error {
 		return errors.Wrap(result.Error, "failed to save vote")
 	}
 	msg := fmt.Sprintf("Voted to kill <@%s>", vote.VotingForId)
-	return args.Interaction.Respond(msg, false)
+	return ia.Interaction.Respond(msg, false)
 }
 
-func startGameListener(s *lib.ServiceArgs, data listeners.GameStartData) error {
+func startGameListener(s *lib.SessionArgs, data listeners.GameStartData) error {
 	var err error
 	wolvesChannel := data.Guild.ChannelByAppId(models.ChannelWerewolves)
 	if wolvesChannel == nil {
@@ -112,15 +116,16 @@ func startGameListener(s *lib.ServiceArgs, data listeners.GameStartData) error {
 	wolfMsg := strings.Join(wolfMentions, ", ")
 	return s.Session.Message(wolvesChannel.Id, msg+wolfMsg)
 }
-func killVillagers(s *lib.ServiceArgs, data listeners.DayStartData) error {
+func killVillagers(s *lib.SessionArgs, data listeners.DayStartData) error {
 	var err error
+	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
 	var result *gorm.DB
 	townChannel := data.Guild.ChannelByAppId(models.ChannelTownSquare)
 	if townChannel == nil {
 		return errors.New("No town channel found for guild " + data.Guild.Id)
 	}
 	var voted string
-	result = s.GormDB.
+	result = gormDB.
 		Model(&WerewolfKillVote{}).
 		Select("voting_for_id").
 		Group("voting_for_id").
@@ -144,7 +149,7 @@ func killVillagers(s *lib.ServiceArgs, data listeners.DayStartData) error {
 		}
 	} else {
 		var character models.GuildCharacter
-		result = s.GormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).First(&character)
+		result = gormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).First(&character)
 		if result.Error != nil {
 			return errors.Wrap(result.Error, "Could not find character with ID "+voted)
 		}
@@ -156,14 +161,14 @@ func killVillagers(s *lib.ServiceArgs, data listeners.DayStartData) error {
 		}
 		msg := &discordgo.MessageEmbed{
 			Type:        discordgo.EmbedTypeRich,
-			Title:       fmt.Sprintf("Last night, <@%s> died.", voted),
-			Description: "They were killed by a werewolf attack!",
+			Title:       "Last night the werwolves attacked!",
+			Description: fmt.Sprintf("<@%s> has died at the fangs of wolves.", voted),
 		}
 		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
 			return errors.Wrap(err, "Could not send town channel message")
 		}
 		character.ExtraData["death_cause"] = "wolf"
-		if result = s.GormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).Save(&character); result.Error != nil {
+		if result = gormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).Save(&character); result.Error != nil {
 			return errors.Wrap(result.Error, "Could not update character with ID "+voted)
 		}
 	}

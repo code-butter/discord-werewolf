@@ -5,7 +5,7 @@ import (
 	"discord-werewolf/lib/models"
 )
 
-type ListenerCallback[T any] func(s *lib.ServiceArgs, data T) error
+type ListenerCallback[T any] func(s *lib.SessionArgs, data T) error
 
 type listenerTracker[T any] struct {
 	listeners []ListenerCallback[T]
@@ -15,7 +15,7 @@ func (lt *listenerTracker[T]) Add(lc ListenerCallback[T]) {
 	lt.listeners = append(lt.listeners, lc)
 }
 
-func (lt *listenerTracker[T]) Trigger(s *lib.ServiceArgs, data T) error {
+func (lt *listenerTracker[T]) Trigger(s *lib.SessionArgs, data T) error {
 	for _, listener := range lt.listeners {
 		if err := listener(s, data); err != nil {
 			return err

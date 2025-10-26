@@ -17,16 +17,13 @@ import (
 	"github.com/bwmarrin/discordgo"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
+	"github.com/samber/do"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 func main() {
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	// Env vars
 	token := os.Getenv("DISCORD_TOKEN")
 	if token == "" {
 		lib.Fatal("DISCORD_TOKEN environment variable not set")
@@ -37,6 +34,13 @@ func main() {
 		lib.Fatal("CLIENT_ID environment variable not set")
 	}
 
+	injector := do.New()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	do.ProvideValue[context.Context](injector, ctx)
+
 	var err error
 	// Database
 	var db *sql.DB
@@ -45,12 +49,16 @@ func main() {
 	}
 	defer db.Close()
 
+	do.ProvideValue[*sql.DB](injector, db)
+
 	gormDB, err := gorm.Open(sqlite.New(sqlite.Config{
 		Conn: db,
 	}))
 	if err != nil {
 		lib.Fatal(errors.Wrap(err, "Could not connect to database with Gorm"))
 	}
+
+	do.ProvideValue[*gorm.DB](injector, gormDB)
 
 	// TODO: move this to an "upgrade" subcommand
 	if err = lib.MigrateUp(db); err != nil {
@@ -63,6 +71,8 @@ func main() {
 		lib.Fatal(err)
 	}
 	lib.SetBotConnection(discordClient)
+
+	do.ProvideValue[*discordgo.Session](injector, discordClient)
 
 	// Setup sections. Keep in mind that order is incredibly important here. Callbacks will be run in the order they
 	// are set up in these functions.
@@ -77,8 +87,12 @@ func main() {
 		lib.Fatal(err)
 	}
 
+	clock := lib.RealClock{}
+
+	do.ProvideValue[lib.Clock](injector, clock)
+
 	// Discord handlers
-	commands := lib.GetCommands()
+	commands := lib.GetGlobalCommands()
 	discordClient.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		var err error
 		if i.Type == discordgo.InteractionApplicationCommand {
@@ -86,10 +100,9 @@ func main() {
 			interaction := lib.NewLiveInteraction(i)
 			if cmd, ok := commands[commandName]; ok {
 				interactionArgs := &lib.InteractionArgs{
-					ServiceArgs: &lib.ServiceArgs{
-						Session: lib.GetGuildDiscordSession(i.GuildID),
-						GormDB:  gormDB,
-						Ctx:     ctx,
+					SessionArgs: &lib.SessionArgs{
+						Session:  lib.GetGuildDiscordSession(i.GuildID),
+						Injector: injector,
 					},
 					Interaction: interaction,
 				}
@@ -134,9 +147,7 @@ func main() {
 	// TODO: move this to an "upgrade" subcommand
 	globalCommands := make([]*discordgo.ApplicationCommand, 0)
 	for _, cmd := range commands {
-		if cmd.Global {
-			globalCommands = append(globalCommands, cmd.ApplicationCommand)
-		}
+		globalCommands = append(globalCommands, cmd.ApplicationCommand)
 	}
 	if len(globalCommands) > 0 {
 		_, err = discordClient.ApplicationCommandBulkOverwrite(clientId, "", globalCommands)
@@ -151,11 +162,7 @@ func main() {
 	}
 
 	// Start timers
-	go game_management.TimedDayNight(lib.ServiceArgs{
-		Session: nil, // This will be set when calling start night/day functions
-		GormDB:  gormDB,
-		Ctx:     ctx,
-	})
+	go game_management.TimedDayNight(injector)
 
 	log.Printf("System timezone: %s\n", currentTz)
 

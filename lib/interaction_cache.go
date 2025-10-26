@@ -12,12 +12,14 @@ type interactionCacheMapValue[T any] struct {
 type InteractionCache[T any] struct {
 	interactionCacheMap[T]
 	expiresDuration time.Duration
+	clock           Clock
 }
 
-func NewInteractionCache[T any](expiresDuration time.Duration) InteractionCache[T] {
+func NewInteractionCache[T any](expiresDuration time.Duration, clock Clock) InteractionCache[T] {
 	return InteractionCache[T]{
 		interactionCacheMap: interactionCacheMap[T]{},
 		expiresDuration:     expiresDuration,
+		clock:               clock,
 	}
 }
 

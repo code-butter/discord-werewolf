@@ -1,6 +1,7 @@
 package game_management
 
 import (
+	"context"
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/listeners"
 	"discord-werewolf/lib/models"
@@ -8,14 +9,16 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/samber/do"
 	"gorm.io/gorm"
 )
 
-func StartDay(guildId string, s lib.ServiceArgs) error {
+func StartDay(guildId string, s lib.SessionArgs) error {
 	var err error
 	var result *gorm.DB
 	var guild models.Guild
-	if result = s.GormDB.Where("id = ?", guildId).First(&guild); result.Error != nil {
+	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
+	if result = gormDB.Where("id = ?", guildId).First(&guild); result.Error != nil {
 		return errors.Wrap(result.Error, "Guild not found")
 	}
 	err = listeners.DayStartListeners.Trigger(&s, listeners.DayStartData{
@@ -25,18 +28,20 @@ func StartDay(guildId string, s lib.ServiceArgs) error {
 		return errors.Wrap(err, "Failed to start day from triggers")
 	}
 	guild.DayNight = true
-	if result = s.GormDB.Save(&guild); result.Error != nil {
+	if result = gormDB.Save(&guild); result.Error != nil {
 		return errors.Wrap(result.Error, "Could not save guild")
 	}
 
 	return nil
 }
 
-func StartNight(guildId string, s lib.ServiceArgs) error {
+func StartNight(guildId string, s lib.SessionArgs) error {
 	var err error
 	var result *gorm.DB
 	var guild models.Guild
-	if result = s.GormDB.Where("id = ?", guildId).First(&guild); result.Error != nil {
+
+	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
+	if result = gormDB.Where("id = ?", guildId).First(&guild); result.Error != nil {
 		return errors.Wrap(result.Error, "Guild not found")
 	}
 	err = listeners.NightStartListeners.Trigger(&s, listeners.NightStartData{
@@ -46,14 +51,18 @@ func StartNight(guildId string, s lib.ServiceArgs) error {
 		return errors.Wrap(err, "Failed to start night from triggers")
 	}
 	guild.DayNight = false
-	if result = s.GormDB.Save(&guild); result.Error != nil {
+	if result = gormDB.Save(&guild); result.Error != nil {
 		return errors.Wrap(result.Error, "Could not save guild")
 	}
 	return nil
 }
 
-func TimedDayNight(s lib.ServiceArgs) {
+func TimedDayNight(i *do.Injector) {
 	var err error
+
+	clock := do.MustInvoke[lib.Clock](i)
+	ctx := do.MustInvoke[context.Context](i)
+	gormDB := do.MustInvoke[*gorm.DB](i)
 
 	systemTz, err := lib.SystemTimeZone()
 
@@ -62,11 +71,11 @@ func TimedDayNight(s lib.ServiceArgs) {
 		systemTz = time.UTC
 	}
 
-	for s.Ctx.Err() == nil {
-		cutoff := time.Now().UTC().Add(-23*time.Hour + 59*time.Minute)
-		now := time.Now().UTC()
+	for ctx.Err() == nil {
+		cutoff := clock.Now().UTC().Add(-23*time.Hour + 59*time.Minute)
+		now := clock.Now().UTC()
 		var guilds []models.Guild
-		if result := s.GormDB.Where("game_going = 1 AND paused = 0").Find(&guilds); result.Error != nil {
+		if result := gormDB.Where("game_going = 1 AND paused = 0").Find(&guilds); result.Error != nil {
 			panic(result.Error)
 		}
 		var finishedGuildIds []string
@@ -75,13 +84,15 @@ func TimedDayNight(s lib.ServiceArgs) {
 			if lastCycleRan == nil {
 				lastCycleRan = &now
 			}
-			guildServiceArgs := s
-			guildServiceArgs.Session = lib.GetGuildDiscordSession(guild.Id)
+			sa := lib.SessionArgs{
+				Session:  lib.GetGuildDiscordSession(guild.Id),
+				Injector: i,
+			}
 			if lastCycleRan.Before(cutoff) {
 				if guild.DayNight {
-					err = StartNight(guild.Id, guildServiceArgs)
+					err = StartNight(guild.Id, sa)
 				} else {
-					err = StartDay(guild.Id, guildServiceArgs)
+					err = StartDay(guild.Id, sa)
 				}
 				if err != nil {
 					log.Println(err)
@@ -107,7 +118,7 @@ func TimedDayNight(s lib.ServiceArgs) {
 					nightTime = &models.TimeOnly{Time: &newNightTime}
 				}
 				if nightTime.BeforeOrOn(now) && nightTime.AfterOrOn(*lastCycleRan) {
-					if err = StartNight(guild.Id, guildServiceArgs); err != nil {
+					if err = StartNight(guild.Id, sa); err != nil {
 						log.Println(err)
 						continue
 					}
@@ -120,7 +131,7 @@ func TimedDayNight(s lib.ServiceArgs) {
 					dayTime = &models.TimeOnly{Time: &newDayTime}
 				}
 				if dayTime.BeforeOrOn(now) && dayTime.AfterOrOn(*lastCycleRan) {
-					if err = StartDay(guild.Id, s); err != nil {
+					if err = StartDay(guild.Id, sa); err != nil {
 						log.Println(err)
 						continue
 					}
@@ -128,9 +139,9 @@ func TimedDayNight(s lib.ServiceArgs) {
 				}
 			}
 		}
-		_, err = gorm.G[models.Guild](s.GormDB).
+		_, err = gorm.G[models.Guild](gormDB).
 			Where("id in ?", finishedGuildIds).
-			Update(s.Ctx, "last_cycle_ran", now)
+			Update(ctx, "last_cycle_ran", now)
 		if err != nil {
 			lib.Fatal(err)
 		}

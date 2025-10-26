@@ -1,6 +1,7 @@
 package guild_management
 
 import (
+	"context"
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/models"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	sets "github.com/hashicorp/go-set/v3"
 	"github.com/pkg/errors"
+	"github.com/samber/do"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -80,22 +82,20 @@ func init() {
 }
 
 func Setup() error {
-	lib.RegisterCommand(lib.Command{
+	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "init",
 			Description: "Initializes the server. Wipes out any data previously stored.",
 		},
-		Global:      true,
 		Respond:     initServer,
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
-	lib.RegisterCommand(lib.Command{
+	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "ping",
 			Description: "Pings the server. Responds with 'pong'.",
 		},
-		Global:  true,
 		Respond: ping,
 	})
 
@@ -119,7 +119,7 @@ func Setup() error {
 		})
 	}
 
-	lib.RegisterCommand(lib.Command{
+	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "get_timezones",
 			Description: "Get timezones for the server.",
@@ -133,12 +133,12 @@ func Setup() error {
 				},
 			},
 		},
-		Global:      true,
+
 		Respond:     getTimeZones,
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
-	lib.RegisterCommand(lib.Command{
+	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "set_timezone",
 			Description: "Sets the timezone for the server.",
@@ -151,7 +151,7 @@ func Setup() error {
 				},
 			},
 		},
-		Global:      true,
+
 		Respond:     setTimeZone,
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
@@ -183,6 +183,9 @@ func getTimeZones(ia *lib.InteractionArgs) error {
 }
 
 func setTimeZone(ia *lib.InteractionArgs) error {
+	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
+	ctx := do.MustInvoke[context.Context](ia.Injector)
+
 	data := ia.Interaction.CommandData()
 	tzName := data.GetOption("timezone").Value.(string)
 	_, err := time.LoadLocation(tzName)
@@ -190,8 +193,8 @@ func setTimeZone(ia *lib.InteractionArgs) error {
 		_ = ia.Interaction.Respond("Unable to set timezone", true)
 		return err
 	}
-	err = gorm.G[any](ia.GormDB).
-		Exec(ia.Ctx, "UPDATE guilds SET time_zone = ? WHERE id = ?", tzName, ia.Interaction.GuildId())
+	err = gorm.G[any](gormDB).
+		Exec(ctx, "UPDATE guilds SET time_zone = ? WHERE id = ?", tzName, ia.Interaction.GuildId())
 	if err != nil {
 		_ = ia.Interaction.Respond("Unable to set timezone", true)
 		return err
@@ -206,6 +209,8 @@ func ping(ia *lib.InteractionArgs) error {
 
 func initServer(ia *lib.InteractionArgs) error {
 	var err error
+
+	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
 
 	if err = ia.Interaction.DeferredResponse("Initializing server...", true); err != nil {
 		return errors.Wrap(err, "Could not send deferred response to Discord")
@@ -225,7 +230,7 @@ func initServer(ia *lib.InteractionArgs) error {
 	}
 
 	var guildRecord *models.Guild
-	if result := ia.GormDB.Where("id = ?", guild.ID).First(&guildRecord); result.Error != nil {
+	if result := gormDB.Where("id = ?", guild.ID).First(&guildRecord); result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			guildRecord = nil
 		} else {
@@ -317,7 +322,7 @@ func initServer(ia *lib.InteractionArgs) error {
 	}
 	guildRecord.Channels = saveChannels
 
-	result := ia.GormDB.Clauses(clause.OnConflict{
+	result := gormDB.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"name", "channels"}),
 	}).Create(&guildRecord)

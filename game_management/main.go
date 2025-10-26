@@ -1,6 +1,7 @@
 package game_management
 
 import (
+	"context"
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/listeners"
 	"discord-werewolf/lib/models"
@@ -9,60 +10,61 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/pkg/errors"
+	"github.com/samber/do"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 func Setup() error {
-	lib.RegisterCommand(lib.Command{
+	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "playing",
 			Description: "Signs you up for the next round.",
 		},
-		Global:  true,
+
 		Respond: playing,
 	})
 
-	lib.RegisterCommand(lib.Command{
+	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "stop_playing",
 			Description: "Removes you from playing next round.",
 		},
-		Global:  true,
+
 		Respond: stopPlaying,
 	})
 
-	lib.RegisterCommand(lib.Command{
+	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "start_game",
 			Description: "Starts the game.",
 		},
-		Global:      true,
+
 		Respond:     startGame,
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
-	lib.RegisterCommand(lib.Command{
+	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "day_time",
 			Description: "Triggers day for the current game",
 		},
-		Global:      true,
+
 		Respond:     triggerDay,
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
-	lib.RegisterCommand(lib.Command{
+	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "night_time",
 			Description: "Triggers night for the current game",
 		},
-		Global:      true,
+
 		Respond:     triggerNight,
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
-	lib.RegisterCommand(lib.Command{
+	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "vote",
 			Description: "Vote to hang. Leave off the target if you wish to unvote.",
@@ -75,7 +77,7 @@ func Setup() error {
 				},
 			},
 		},
-		Global:      true,
+
 		Respond:     voteFor,
 		Authorizers: []lib.CommandAuthorizer{canVote},
 	})
@@ -90,7 +92,7 @@ func triggerNight(args *lib.InteractionArgs) error {
 	if err != nil {
 		return err
 	}
-	if err = StartNight(args.Interaction.GuildId(), *args.ServiceArgs); err != nil {
+	if err = StartNight(args.Interaction.GuildId(), *args.SessionArgs); err != nil {
 		return err
 	}
 	return args.Interaction.FollowupMessage("Night triggered!", true)
@@ -101,21 +103,23 @@ func triggerDay(args *lib.InteractionArgs) error {
 	if err != nil {
 		return err
 	}
-	if err = StartDay(args.Interaction.GuildId(), *args.ServiceArgs); err != nil {
+	if err = StartDay(args.Interaction.GuildId(), *args.SessionArgs); err != nil {
 		return err
 	}
 	return args.Interaction.FollowupMessage("Day triggered!", true)
 }
 
-func hangCharacters(s *lib.ServiceArgs, data listeners.NightStartData) error {
+func hangCharacters(s *lib.SessionArgs, data listeners.NightStartData) error {
 	var err error
 	var result *gorm.DB
+	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
+	ctx := do.MustInvoke[context.Context](s.Injector)
 	townChannel := data.Guild.ChannelByAppId(models.ChannelTownSquare)
 	if townChannel == nil {
 		return errors.New("No town channel found for guild " + data.Guild.Id)
 	}
 	var voted string
-	result = s.GormDB.
+	result = gormDB.
 		Model(&models.GuildVote{}).
 		Select("voting_for_id").
 		Group("voting_for_id").
@@ -139,7 +143,7 @@ func hangCharacters(s *lib.ServiceArgs, data listeners.NightStartData) error {
 		}
 	} else {
 		var character models.GuildCharacter
-		result = s.GormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).First(&character)
+		result = gormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).First(&character)
 		if result.Error != nil {
 			return errors.Wrap(result.Error, "Could not find character with ID "+voted)
 		}
@@ -157,11 +161,11 @@ func hangCharacters(s *lib.ServiceArgs, data listeners.NightStartData) error {
 			return errors.Wrap(err, "Could not send town channel message")
 		}
 		character.ExtraData["death_cause"] = "hanged"
-		if result = s.GormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).Save(&character); result.Error != nil {
+		if result = gormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).Save(&character); result.Error != nil {
 			return errors.Wrap(result.Error, "Could not update character with ID "+voted)
 		}
 	}
-	_, err = gorm.G[models.GuildVote](s.GormDB).Where("guild_id = ?", data.Guild.Id).Delete(s.Ctx)
+	_, err = gorm.G[models.GuildVote](gormDB).Where("guild_id = ?", data.Guild.Id).Delete(ctx)
 	return err
 }
 
@@ -176,10 +180,13 @@ func voteFor(ia *lib.InteractionArgs) error {
 	userId := ia.Interaction.Requester().ID
 	voteForId := ia.Interaction.CommandData().GetOption("user").Value.(string)
 
+	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
+	ctx := do.MustInvoke[context.Context](ia.Injector)
+
 	if voteForId == "" {
-		_, err := gorm.G[models.GuildVote](ia.GormDB).
+		_, err := gorm.G[models.GuildVote](gormDB).
 			Where("guild_id = ? AND user_id = ?", guildId, userId).
-			Delete(ia.Ctx)
+			Delete(ctx)
 		if err != nil {
 			return err
 		}
@@ -192,7 +199,7 @@ func voteFor(ia *lib.InteractionArgs) error {
 		UserId:      ia.Interaction.Requester().ID,
 		VotingForId: voteForId,
 	}
-	result := ia.GormDB.Clauses(clause.OnConflict{
+	result := gormDB.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "guild_id"}, {Name: "user_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"voting_for_id"}),
 	}).Create(&vote)
@@ -207,6 +214,7 @@ func voteFor(ia *lib.InteractionArgs) error {
 // TODO: enable scheduled start
 func startGame(ia *lib.InteractionArgs) error {
 	var err error
+	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
 	if err = ia.Interaction.DeferredResponse("Starting game...", true); err != nil {
 		return err
 	}
@@ -218,13 +226,13 @@ func startGame(ia *lib.InteractionArgs) error {
 
 	var guild *models.Guild
 	var result *gorm.DB
-	if result = ia.GormDB.Where("id = ?", ia.Interaction.GuildId()).First(&guild); result.Error != nil {
+	if result = gormDB.Where("id = ?", ia.Interaction.GuildId()).First(&guild); result.Error != nil {
 		return result.Error
 	}
-	if result = ia.GormDB.Where("guild_id = ?", ia.Interaction.GuildId()).Delete(&models.GuildCharacter{}); result.Error != nil {
+	if result = gormDB.Where("guild_id = ?", ia.Interaction.GuildId()).Delete(&models.GuildCharacter{}); result.Error != nil {
 		return result.Error
 	}
-	if result = ia.GormDB.Where("guild_id = ?", ia.Interaction.GuildId()).Delete(&models.GuildVote{}); result.Error != nil {
+	if result = gormDB.Where("guild_id = ?", ia.Interaction.GuildId()).Delete(&models.GuildVote{}); result.Error != nil {
 		return result.Error
 	}
 
@@ -255,8 +263,9 @@ func startGame(ia *lib.InteractionArgs) error {
 
 	for i, player := range players {
 		character := models.GuildCharacter{
-			Id:      player.User.ID,
-			GuildId: ia.Interaction.GuildId(),
+			Id:        player.User.ID,
+			GuildId:   ia.Interaction.GuildId(),
+			ExtraData: models.JsonMap{},
 		}
 		if i%3 == 0 {
 			character.CharacterId = models.CharacterWolf
@@ -266,7 +275,7 @@ func startGame(ia *lib.InteractionArgs) error {
 		characters = append(characters, character)
 	}
 
-	if result = ia.GormDB.Save(&characters); result.Error != nil {
+	if result = gormDB.Save(&characters); result.Error != nil {
 		return result.Error
 	}
 
@@ -279,7 +288,7 @@ func startGame(ia *lib.InteractionArgs) error {
 		}
 	}
 
-	err = listeners.GameStartListeners.Trigger(ia.ServiceArgs, listeners.GameStartData{
+	err = listeners.GameStartListeners.Trigger(ia.SessionArgs, listeners.GameStartData{
 		Guild:      *guild,
 		Characters: characters,
 	})

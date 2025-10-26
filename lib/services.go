@@ -1,13 +1,8 @@
 package lib
 
-import (
-	"context"
+import "github.com/samber/do"
 
-	"gorm.io/gorm"
-)
-
-type ServiceArgs struct {
-	Session DiscordSession
-	GormDB  *gorm.DB
-	Ctx     context.Context
+type SessionArgs struct {
+	Session  DiscordSession
+	Injector *do.Injector
 }

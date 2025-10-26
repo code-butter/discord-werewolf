@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"discord-werewolf/lib"
 	"log"
+	"time"
 
 	"github.com/pkg/errors"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-func TestInit() {
+func TestInit() lib.SessionArgs {
 	var err error
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
@@ -24,10 +25,18 @@ func TestInit() {
 		log.Fatal(errors.Wrap(err, "Could not connect to database with Gorm"))
 	}
 
-	lib.DB = db
-	lib.Ctx = context.Background() // TODO: make this listen to signals
-	lib.GormDB = gormDB
+	if err := lib.MigrateUp(db); err != nil {
+		log.Fatal(err)
+	}
 
-	lib.MigrateUp()
+	clock := NewMockClock(time.Now())
+	clock.Unfreeze()
+
+	return lib.SessionArgs{
+		Session: nil,
+		GormDB:  gormDB,
+		Ctx:     context.Background(), // TODO: make this listen to signals?
+		Clock:   clock,
+	}
 
 }

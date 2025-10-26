@@ -5,7 +5,7 @@ import (
 )
 
 type InteractionArgs struct {
-	*ServiceArgs
+	*SessionArgs
 	Interaction Interaction
 }
 
