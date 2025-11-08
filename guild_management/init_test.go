@@ -13,11 +13,11 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"github.com/samber/do"
+	"gorm.io/gorm"
 )
 
 func TestServerInit(t *testing.T) {
-
-	testlib.TestInit()
 
 	guildId := uuid.NewString()
 	guildName := "Test Guild"
@@ -25,15 +25,18 @@ func TestServerInit(t *testing.T) {
 	owner := &discordgo.User{
 		ID: "owner",
 	}
-	i := testlib.NewTestInteraction(guildId, guildName, testlib.TestInteractionOptions{
-		Owner:     owner,
+	session := testlib.NewTestSession(guildId, guildName, testlib.TestSessionOptions{
+		Owner: owner,
+	})
+	args, _ := testlib.InteractionInit(session, testlib.TestInteractionOptions{
 		Requester: owner,
 	})
-	if err := initServer(i); err != nil {
+	if err := initServer(&args); err != nil {
 		t.Fatal(err)
 	}
 	var guild models.Guild
-	if result := lib.GormDB.Where("name = ?", "Test Guild").First(&guild); result.Error != nil {
+	gormDb := do.MustInvoke[*gorm.DB](args.Injector)
+	if result := gormDb.Where("name = ?", "Test Guild").First(&guild); result.Error != nil {
 		t.Fatal(result.Error)
 	}
 	if guild.Id != guildId {
@@ -43,7 +46,7 @@ func TestServerInit(t *testing.T) {
 		t.Errorf("Guild name is %s, expected %s", guildName, guildName)
 	}
 
-	discordChannels, _ := i.Channels()
+	discordChannels, _ := args.Session.Channels()
 	dbChannels := maps.Values(guild.Channels)
 
 	for _, ic := range initialChannels {
@@ -60,7 +63,7 @@ func TestServerInit(t *testing.T) {
 		}
 	}
 
-	discordRoles, _ := i.GetRoles()
+	discordRoles, _ := args.Session.GetRoles()
 	for _, role := range lib.Roles {
 		roleFound := false
 		for _, discordRole := range discordRoles {

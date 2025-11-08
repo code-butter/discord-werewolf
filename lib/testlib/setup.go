@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/samber/do"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-func TestInit() lib.SessionArgs {
+func TestInit(session lib.DiscordSession) (lib.SessionArgs, lib.Clock) {
 	var err error
+
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		log.Fatal(errors.Wrap(err, "Could not create in-memory database"))
@@ -21,6 +23,7 @@ func TestInit() lib.SessionArgs {
 	gormDB, err := gorm.Open(sqlite.New(sqlite.Config{
 		Conn: db,
 	}))
+
 	if err != nil {
 		log.Fatal(errors.Wrap(err, "Could not connect to database with Gorm"))
 	}
@@ -30,13 +33,23 @@ func TestInit() lib.SessionArgs {
 	}
 
 	clock := NewMockClock(time.Now())
-	clock.Unfreeze()
+
+	injector := do.New()
+	do.ProvideValue[*gorm.DB](injector, gormDB)
+	do.ProvideValue[context.Context](injector, context.Background())
+	do.ProvideValue[lib.Clock](injector, clock)
 
 	return lib.SessionArgs{
-		Session: nil,
-		GormDB:  gormDB,
-		Ctx:     context.Background(), // TODO: make this listen to signals?
-		Clock:   clock,
-	}
+		Session:  session,
+		Injector: injector,
+	}, clock
 
+}
+
+func InteractionInit(session lib.DiscordSession, options TestInteractionOptions) (lib.InteractionArgs, lib.Clock) {
+	sa, clock := TestInit(session)
+	return lib.InteractionArgs{
+		SessionArgs: sa,
+		Interaction: NewTestInteraction(session, options),
+	}, clock
 }

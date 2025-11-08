@@ -258,6 +258,18 @@ func initServer(ia *lib.InteractionArgs) error {
 	}
 	////////////////////////////////////////
 
+	// Create roles if they don't exist
+	guildRoles, err := ia.Session.GetRoles()
+	if err != nil {
+		return errors.Wrap(err, "Could not get guild roles")
+	}
+	for _, role := range lib.Roles {
+		if err = ia.Session.EnsureRoleCreated(role.Name, role.Color, guildRoles); err != nil {
+			return errors.Wrap(err, fmt.Sprintf("Could not create role %s", role.Name))
+		}
+	}
+
+	// Map roles
 	roles, err := ia.Session.GetRoles()
 	if err != nil {
 		return errors.Wrap(err, "Could not get guild roles")
@@ -331,14 +343,5 @@ func initServer(ia *lib.InteractionArgs) error {
 		return errors.Wrap(result.Error, "Could not update guild record")
 	}
 
-	guildRoles, err := ia.Session.GetRoles()
-	if err != nil {
-		return errors.Wrap(err, "Could not get guild roles")
-	}
-	for _, role := range lib.Roles {
-		if err = ia.Session.EnsureRoleCreated(role.Name, role.Color, guildRoles); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("Could not create role %s", role.Name))
-		}
-	}
 	return nil
 }

@@ -92,7 +92,7 @@ func triggerNight(args *lib.InteractionArgs) error {
 	if err != nil {
 		return err
 	}
-	if err = StartNight(args.Interaction.GuildId(), *args.SessionArgs); err != nil {
+	if err = StartNight(args.Interaction.GuildId(), args.SessionArgs); err != nil {
 		return err
 	}
 	return args.Interaction.FollowupMessage("Night triggered!", true)
@@ -103,7 +103,7 @@ func triggerDay(args *lib.InteractionArgs) error {
 	if err != nil {
 		return err
 	}
-	if err = StartDay(args.Interaction.GuildId(), *args.SessionArgs); err != nil {
+	if err = StartDay(args.Interaction.GuildId(), args.SessionArgs); err != nil {
 		return err
 	}
 	return args.Interaction.FollowupMessage("Day triggered!", true)
@@ -283,12 +283,15 @@ func startGame(ia *lib.InteractionArgs) error {
 		if err = ia.Session.RemoveRole(character.Id, lib.RolePlaying); err != nil {
 			return errors.Wrap(err, "could not remove playing role from user")
 		}
+		if err = ia.Session.RemoveRole(character.Id, lib.RoleDead); err != nil {
+			return errors.Wrap(err, "could not remove dead role from user")
+		}
 		if err = ia.Session.AssignRole(character.Id, lib.RoleAlive); err != nil {
 			return errors.Wrap(err, "could not assign alive role to user")
 		}
 	}
 
-	err = listeners.GameStartListeners.Trigger(ia.SessionArgs, listeners.GameStartData{
+	err = listeners.GameStartListeners.Trigger(&ia.SessionArgs, listeners.GameStartData{
 		Guild:      *guild,
 		Characters: characters,
 	})
