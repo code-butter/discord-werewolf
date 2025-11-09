@@ -33,7 +33,7 @@ func Setup() error {
 	})
 
 	listeners.GameStartListeners.Add(startGameListener)
-	listeners.DayStartListeners.Add(killVillagers)
+	listeners.DayStartListeners.Add(dayStartListener)
 
 	return nil
 }
@@ -109,14 +109,14 @@ func startGameListener(s *lib.SessionArgs, data listeners.GameStartData) error {
 		}
 	}
 	msg := heredoc.Doc(`
-		Welcome to the werewolf channel! Talk to your fellow werewolves and mark your next target with the ` + "`/kill`" + ` command at night to eat the villagers. Each werewolf can mark their own target. If the werewolf target do not match the werewolf bot will choose the villager to be eaten.
+		Welcome to the werewolf channel! Talk to your fellow werewolves and mark your next target with the ` + "`/kill`" + ` command at night to eat the villagers. Each werewolf can mark their own target to kill. If a tie happens the bot will choose a villager to kill. 
 		
 		Werewolves:
 	`)
 	wolfMsg := strings.Join(wolfMentions, ", ")
 	return s.Session.Message(wolvesChannel.Id, msg+wolfMsg)
 }
-func killVillagers(s *lib.SessionArgs, data listeners.DayStartData) error {
+func dayStartListener(s *lib.SessionArgs, data listeners.DayStartData) error {
 	var err error
 	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
 	var result *gorm.DB

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"discord-werewolf/game_management"
-	"discord-werewolf/guild_management"
 	"discord-werewolf/lib"
 	"discord-werewolf/werewolves"
 	"fmt"
@@ -74,12 +73,8 @@ func main() {
 
 	do.ProvideValue[*discordgo.Session](injector, discordClient)
 
-	// Setup sections. Keep in mind that order is incredibly important here. Callbacks will be run in the order they
+	// Setup sections. Keep in mind that order is important here. Callbacks will be run in the order they
 	// are set up in these functions.
-
-	if err = guild_management.Setup(); err != nil {
-		lib.Fatal(err)
-	}
 	if err = game_management.Setup(); err != nil {
 		lib.Fatal(err)
 	}
@@ -100,7 +95,7 @@ func main() {
 			interaction := lib.NewLiveInteraction(i)
 			if cmd, ok := commands[commandName]; ok {
 				interactionArgs := &lib.InteractionArgs{
-					SessionArgs: &lib.SessionArgs{
+					SessionArgs: lib.SessionArgs{
 						Session:  lib.GetGuildDiscordSession(i.GuildID),
 						Injector: injector,
 					},

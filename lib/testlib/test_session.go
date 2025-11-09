@@ -6,15 +6,25 @@ import (
 	"github.com/pkg/errors"
 )
 
-func NewTestSession(guildId string, name string, options TestSessionOptions) *TestSession {
+func NewTestSession(options TestSessionOptions) *TestSession {
 	return &TestSession{
-		guildId:      guildId,
-		name:         name,
-		channels:     options.Channels,
-		guildRoles:   options.GuildRoles,
-		userRoles:    options.UserRoles,
-		owner:        options.Owner,
-		guildMembers: options.GuildMembers,
+		GuildId:       uuid.NewString(),
+		Name:          "Test Guild",
+		GuildChannels: options.Channels,
+		GuildRoles:    options.GuildRoles,
+		Owner:         options.Owner,
+		Members:       options.GuildMembers,
+	}
+}
+
+func NewGuildTestSession(guildId string, name string, options TestSessionOptions) *TestSession {
+	return &TestSession{
+		GuildId:       guildId,
+		Name:          name,
+		GuildChannels: options.Channels,
+		GuildRoles:    options.GuildRoles,
+		Owner:         options.Owner,
+		Members:       options.GuildMembers,
 	}
 }
 
@@ -22,24 +32,22 @@ type TestSessionOptions struct {
 	Channels     []*discordgo.Channel
 	GuildMembers []*discordgo.Member
 	GuildRoles   []*discordgo.Role
-	UserRoles    map[string][]string
 	Owner        *discordgo.User
 }
 
 type TestSession struct {
-	guildId      string
-	name         string
-	channels     []*discordgo.Channel
-	guildRoles   []*discordgo.Role
-	userRoles    map[string][]string
-	owner        *discordgo.User
-	guildMembers []*discordgo.Member
+	GuildId       string
+	Name          string
+	GuildChannels []*discordgo.Channel
+	GuildRoles    []*discordgo.Role
+	Owner         *discordgo.User
+	Members       []*discordgo.Member
 }
 
 func (t *TestSession) Guild() (*discordgo.Guild, error) {
 	return &discordgo.Guild{
-		ID:   t.guildId,
-		Name: t.name,
+		ID:   t.GuildId,
+		Name: t.Name,
 	}, nil
 }
 
@@ -52,29 +60,29 @@ func (t *TestSession) MessageEmbed(_ string, _ *discordgo.MessageEmbed) error {
 }
 
 func (t *TestSession) Channels() ([]*discordgo.Channel, error) {
-	return t.channels, nil
+	return t.GuildChannels, nil
 }
 
 func (t *TestSession) CreateTextChannel(name string, parentId string) (*discordgo.Channel, error) {
 	channel := &discordgo.Channel{
 		ID:       uuid.NewString(),
-		GuildID:  t.guildId,
+		GuildID:  t.GuildId,
 		Name:     name,
 		Type:     discordgo.ChannelTypeGuildText,
 		ParentID: parentId,
 	}
-	t.channels = append(t.channels, channel)
+	t.GuildChannels = append(t.GuildChannels, channel)
 	return channel, nil
 }
 
 func (t *TestSession) CreateCategoryChannel(name string) (*discordgo.Channel, error) {
 	channel := &discordgo.Channel{
 		ID:      uuid.NewString(),
-		GuildID: t.guildId,
+		GuildID: t.GuildId,
 		Name:    name,
 		Type:    discordgo.ChannelTypeGuildCategory,
 	}
-	t.channels = append(t.channels, channel)
+	t.GuildChannels = append(t.GuildChannels, channel)
 	return channel, nil
 }
 
@@ -83,11 +91,11 @@ func (t *TestSession) ClearChannelMessages(_ string) error {
 }
 
 func (t *TestSession) GetRoles() ([]*discordgo.Role, error) {
-	return t.guildRoles, nil
+	return t.GuildRoles, nil
 }
 
 func (t *TestSession) GetRoleByName(name string) (*discordgo.Role, error) {
-	for _, role := range t.guildRoles {
+	for _, role := range t.GuildRoles {
 		if role.Name == name {
 			return role, nil
 		}
@@ -96,13 +104,13 @@ func (t *TestSession) GetRoleByName(name string) (*discordgo.Role, error) {
 }
 
 func (t *TestSession) EnsureRoleCreated(name string, color int, _ discordgo.Roles) error {
-	for _, role := range t.guildRoles {
+	for _, role := range t.GuildRoles {
 		if role.Name == name {
 			role.Color = color
 			return nil
 		}
 	}
-	t.guildRoles = append(t.guildRoles, &discordgo.Role{
+	t.GuildRoles = append(t.GuildRoles, &discordgo.Role{
 		Name:  name,
 		Color: color,
 	})
@@ -111,7 +119,7 @@ func (t *TestSession) EnsureRoleCreated(name string, color int, _ discordgo.Role
 
 func (t *TestSession) DeleteChannel(id string) error {
 	idx := -1
-	for i, channel := range t.channels {
+	for i, channel := range t.GuildChannels {
 		if channel.ID == id {
 			idx = i
 			break
@@ -120,34 +128,58 @@ func (t *TestSession) DeleteChannel(id string) error {
 	if idx == -1 {
 		return errors.New("channel not found")
 	}
-	t.channels = append(t.channels[:idx], t.channels[idx+1:]...)
+	t.GuildChannels = append(t.GuildChannels[:idx], t.GuildChannels[idx+1:]...)
 	return nil
 }
 
+func (t *TestSession) getMember(userId string) (*discordgo.Member, error) {
+	var selectedMember *discordgo.Member
+	for _, member := range t.Members {
+		if member.User.ID == userId {
+			selectedMember = member
+			break
+		}
+	}
+	if selectedMember == nil {
+		return nil, errors.New("User with ID " + userId + " not found")
+	}
+	return selectedMember, nil
+}
+
 func (t *TestSession) AssignRole(userId string, roleName string) error {
+	var err error
 	role, err := t.GetRoleByName(roleName)
 	if err != nil {
 		return err
 	}
-	t.userRoles[userId] = append(t.userRoles[userId], role.ID)
+	selectedMember, err := t.getMember(userId)
+	if err != nil {
+		return err
+	}
+	selectedMember.Roles = append(selectedMember.Roles, role.ID)
 	return nil
 }
 
 func (t *TestSession) RemoveRole(userId string, roleName string) error {
+	var err error
 	role, err := t.GetRoleByName(roleName)
 	if err != nil {
 		return err
 	}
-	for idx, roleId := range t.userRoles[userId] {
+	selectedMember, err := t.getMember(userId)
+	if err != nil {
+		return err
+	}
+	for idx, roleId := range selectedMember.Roles {
 		if role.ID == roleId {
-			t.userRoles[userId] = append(t.userRoles[userId][:idx], t.userRoles[userId][idx+1:]...)
+			selectedMember.Roles = append(selectedMember.Roles[:idx], selectedMember.Roles[idx+1:]...)
 		}
 	}
 	return nil
 }
 
 func (t *TestSession) GuildMembers() ([]*discordgo.Member, error) {
-	return t.guildMembers, nil
+	return t.Members, nil
 }
 
 func (t *TestSession) GuildMembersWithRole(roleName string) ([]*discordgo.Member, error) {
@@ -156,7 +188,7 @@ func (t *TestSession) GuildMembersWithRole(roleName string) ([]*discordgo.Member
 		return nil, err
 	}
 	var members = make([]*discordgo.Member, 0)
-	for _, guildMember := range t.guildMembers {
+	for _, guildMember := range t.Members {
 		for _, mRoleId := range guildMember.Roles {
 			if mRoleId == role.ID {
 				members = append(members, guildMember)

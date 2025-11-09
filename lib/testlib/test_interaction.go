@@ -11,6 +11,7 @@ func NewTestInteraction(session lib.DiscordSession, options TestInteractionOptio
 		session:     session,
 		requester:   options.Requester,
 		commandData: options.CommandData,
+		channelId:   options.ChannelId,
 	}
 }
 
@@ -18,6 +19,7 @@ type TestInteractionOptions struct {
 	Requester   *discordgo.User
 	UserRoles   []*discordgo.Role
 	CommandData discordgo.ApplicationCommandInteractionData
+	ChannelId   string
 }
 
 type TestInteraction struct {
@@ -25,6 +27,11 @@ type TestInteraction struct {
 	userRoles   []*discordgo.Role
 	requester   *discordgo.User
 	commandData discordgo.ApplicationCommandInteractionData
+	channelId   string
+}
+
+func (d *TestInteraction) ChannelId() string {
+	return d.channelId
 }
 
 func (d *TestInteraction) GuildId() string {

@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestInit(session lib.DiscordSession) (lib.SessionArgs, lib.Clock) {
+func TestInit(session lib.DiscordSession) lib.SessionArgs {
 	var err error
 
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -42,14 +42,12 @@ func TestInit(session lib.DiscordSession) (lib.SessionArgs, lib.Clock) {
 	return lib.SessionArgs{
 		Session:  session,
 		Injector: injector,
-	}, clock
-
+	}
 }
 
-func InteractionInit(session lib.DiscordSession, options TestInteractionOptions) (lib.InteractionArgs, lib.Clock) {
-	sa, clock := TestInit(session)
+func InteractionInit(args lib.SessionArgs, options TestInteractionOptions) lib.InteractionArgs {
 	return lib.InteractionArgs{
-		SessionArgs: sa,
-		Interaction: NewTestInteraction(session, options),
-	}, clock
+		SessionArgs: args,
+		Interaction: NewTestInteraction(args.Session, options),
+	}
 }

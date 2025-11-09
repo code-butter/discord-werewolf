@@ -1,4 +1,4 @@
-package guild_management
+package game_management
 
 import (
 	"discord-werewolf/lib"
@@ -25,13 +25,14 @@ func TestServerInit(t *testing.T) {
 	owner := &discordgo.User{
 		ID: "owner",
 	}
-	session := testlib.NewTestSession(guildId, guildName, testlib.TestSessionOptions{
+	session := testlib.NewGuildTestSession(guildId, guildName, testlib.TestSessionOptions{
 		Owner: owner,
 	})
-	args, _ := testlib.InteractionInit(session, testlib.TestInteractionOptions{
+	sessionArgs := testlib.TestInit(session)
+	args := testlib.InteractionInit(sessionArgs, testlib.TestInteractionOptions{
 		Requester: owner,
 	})
-	if err := initServer(&args); err != nil {
+	if err := InitGuild(&args); err != nil {
 		t.Fatal(err)
 	}
 	var guild models.Guild

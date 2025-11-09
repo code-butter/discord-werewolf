@@ -1,17 +1,11 @@
-package guild_management
+package game_management
 
 import (
-	"context"
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/models"
 	"fmt"
-	"regexp"
-	"strings"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/google/uuid"
-	sets "github.com/hashicorp/go-set/v3"
 	"github.com/pkg/errors"
 	"github.com/samber/do"
 	"gorm.io/gorm"
@@ -27,6 +21,7 @@ func init() {
 			AppId:    models.CatChannelInstructions,
 			Children: &[]models.GuildChannel{},
 		},
+		// seer and lovers channels are created on demand
 		"the-town": {
 			Name:  "The Town",
 			AppId: models.CatChannelTheTown,
@@ -44,28 +39,12 @@ func init() {
 					AppId: models.ChannelWitch,
 				},
 				{
-					Name:  fmt.Sprintf("seer-%s", uuid.New()), // TODO: add more seer channels on demand. Use small, random string instead of UUID
-					AppId: "seer-1",
-				},
-				{
-					Name:  fmt.Sprintf("seer-%s", uuid.New()),
-					AppId: "seer-2",
-				},
-				{
 					Name:  models.ChannelMasons,
 					AppId: models.ChannelMasons,
 				},
 				{
 					Name:  models.ChannelBodyguard,
 					AppId: models.ChannelBodyguard,
-				},
-				{
-					Name:  fmt.Sprintf("lovers-%s", uuid.New()), // TODO: add more lovers channels on demand. Use mall, random string instead of UUID
-					AppId: "lovers-1",
-				},
-				{
-					Name:  fmt.Sprintf("lovers-%s", uuid.New()),
-					AppId: "lovers-2",
 				},
 				{
 					Name:  models.ChannelAfterLife,
@@ -81,133 +60,8 @@ func init() {
 	}
 }
 
-func Setup() error {
-	lib.RegisterGlobalCommand(lib.Command{
-		ApplicationCommand: &discordgo.ApplicationCommand{
-			Name:        "init",
-			Description: "Initializes the server. Wipes out any data previously stored.",
-		},
-		Respond:     initServer,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
-	})
-
-	lib.RegisterGlobalCommand(lib.Command{
-		ApplicationCommand: &discordgo.ApplicationCommand{
-			Name:        "ping",
-			Description: "Pings the server. Responds with 'pong'.",
-		},
-		Respond: ping,
-	})
-
-	tzs := lib.AllTimeZoneNames()
-	locationMatcher := regexp.MustCompile(`^([^/])+`)
-	locationSet := sets.New[string](0)
-	for _, tz := range tzs {
-		area := locationMatcher.FindString(tz)
-		if area != "" {
-			locationSet.Insert(area)
-		}
-	}
-	var locationChoices []*discordgo.ApplicationCommandOptionChoice
-	for tzLocation := range locationSet.Items() {
-		if tzLocation == "Etc" {
-			continue
-		}
-		locationChoices = append(locationChoices, &discordgo.ApplicationCommandOptionChoice{
-			Name:  tzLocation,
-			Value: tzLocation,
-		})
-	}
-
-	lib.RegisterGlobalCommand(lib.Command{
-		ApplicationCommand: &discordgo.ApplicationCommand{
-			Name:        "get_timezones",
-			Description: "Get timezones for the server.",
-			Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "area",
-					Description: "Get timezones in this general area.",
-					Required:    true,
-					Choices:     locationChoices,
-				},
-			},
-		},
-
-		Respond:     getTimeZones,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
-	})
-
-	lib.RegisterGlobalCommand(lib.Command{
-		ApplicationCommand: &discordgo.ApplicationCommand{
-			Name:        "set_timezone",
-			Description: "Sets the timezone for the server.",
-			Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "timezone",
-					Description: "Sets the timezone for the server.",
-					Required:    true,
-				},
-			},
-		},
-
-		Respond:     setTimeZone,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
-	})
-
-	return nil
-}
-
-func getTimeZones(ia *lib.InteractionArgs) error {
-	var err error
-	if err = ia.Interaction.DeferredResponse("Loading timezones...", true); err != nil {
-		return err
-	}
-	areaName := ia.Interaction.CommandData().GetOption("area").Value.(string)
-	matcher := regexp.MustCompile(fmt.Sprintf("^%s/", areaName))
-	tzs := lib.AllTimeZoneNames()
-	builder := strings.Builder{}
-	for _, tz := range tzs {
-		if matcher.MatchString(tz) {
-			builder.WriteString(fmt.Sprintln(tz))
-			if builder.Len() > 1900 { // discord max message length is 2000 characters
-				if err = ia.Interaction.FollowupMessage(builder.String(), true); err != nil {
-					return err
-				}
-				builder.Reset()
-			}
-		}
-	}
-	return ia.Interaction.FollowupMessage(builder.String(), true)
-}
-
-func setTimeZone(ia *lib.InteractionArgs) error {
-	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
-	ctx := do.MustInvoke[context.Context](ia.Injector)
-
-	data := ia.Interaction.CommandData()
-	tzName := data.GetOption("timezone").Value.(string)
-	_, err := time.LoadLocation(tzName)
-	if err != nil {
-		_ = ia.Interaction.Respond("Unable to set timezone", true)
-		return err
-	}
-	err = gorm.G[any](gormDB).
-		Exec(ctx, "UPDATE guilds SET time_zone = ? WHERE id = ?", tzName, ia.Interaction.GuildId())
-	if err != nil {
-		_ = ia.Interaction.Respond("Unable to set timezone", true)
-		return err
-	}
-	return ia.Interaction.Respond(fmt.Sprintf("Set timezone to %s", tzName), true)
-
-}
-
-func ping(ia *lib.InteractionArgs) error {
-	return ia.Interaction.Respond("Pong!", false)
-}
-
-func initServer(ia *lib.InteractionArgs) error {
+// This is public for tests in other packages
+func InitGuild(ia *lib.InteractionArgs) error {
 	var err error
 
 	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)

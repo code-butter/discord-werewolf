@@ -5,9 +5,11 @@ import (
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/listeners"
 	"discord-werewolf/lib/models"
+	"fmt"
 	"log"
 	"time"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/pkg/errors"
 	"github.com/samber/do"
 	"gorm.io/gorm"
@@ -147,4 +149,86 @@ func TimedDayNight(i *do.Injector) {
 		}
 		time.Sleep(time.Second * 15)
 	}
+}
+
+func triggerNight(args *lib.InteractionArgs) error {
+	err := args.Interaction.DeferredResponse("Triggering night...", true)
+	if err != nil {
+		return err
+	}
+	if err = StartNight(args.Interaction.GuildId(), args.SessionArgs); err != nil {
+		return err
+	}
+	return args.Interaction.FollowupMessage("Night triggered!", true)
+}
+
+func triggerDay(args *lib.InteractionArgs) error {
+	err := args.Interaction.DeferredResponse("Triggering day...", true)
+	if err != nil {
+		return err
+	}
+	if err = StartDay(args.Interaction.GuildId(), args.SessionArgs); err != nil {
+		return err
+	}
+	return args.Interaction.FollowupMessage("Day triggered!", true)
+}
+
+func nightListener(s *lib.SessionArgs, data listeners.NightStartData) error {
+	var err error
+	var result *gorm.DB
+	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
+	ctx := do.MustInvoke[context.Context](s.Injector)
+	townChannel := data.Guild.ChannelByAppId(models.ChannelTownSquare)
+	if townChannel == nil {
+		return errors.New("No town channel found for guild " + data.Guild.Id)
+	}
+	var voted string
+	result = gormDB.
+		Model(&models.GuildVote{}).
+		Select("voting_for_id").
+		Group("voting_for_id").
+		Order("COUNT(*) DESC").
+		Where("guild_id = ?", data.Guild.Id).
+		Limit(1).
+		Pluck("voting_for_id", &voted)
+	if result.Error != nil {
+		msg := fmt.Sprintf("Could not get votes for guild %s with ID %s", data.Guild.Name, data.Guild.Id)
+		return errors.Wrap(result.Error, msg)
+	}
+
+	if voted == "" {
+		msg := &discordgo.MessageEmbed{
+			Type:        discordgo.EmbedTypeRich,
+			Title:       "No one voted.",
+			Description: "No one was hanged.",
+		}
+		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
+			return errors.Wrap(err, "Could not send town channel message")
+		}
+	} else {
+		var character models.GuildCharacter
+		result = gormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).First(&character)
+		if result.Error != nil {
+			return errors.Wrap(result.Error, "Could not find character with ID "+voted)
+		}
+		if err = s.Session.RemoveRole(voted, "Alive"); err != nil {
+			return errors.Wrap(err, "Could not remove Alive role")
+		}
+		if err = s.Session.AssignRole(voted, "Dead"); err != nil {
+			return errors.Wrap(err, "Could not assign Dead role")
+		}
+		msg := &discordgo.MessageEmbed{
+			Type:  discordgo.EmbedTypeRich,
+			Title: fmt.Sprintf("The town has hanged <@%s>.", voted),
+		}
+		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
+			return errors.Wrap(err, "Could not send town channel message")
+		}
+		character.ExtraData["death_cause"] = "hanged"
+		if result = gormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).Save(&character); result.Error != nil {
+			return errors.Wrap(result.Error, "Could not update character with ID "+voted)
+		}
+	}
+	_, err = gorm.G[models.GuildVote](gormDB).Where("guild_id = ?", data.Guild.Id).Delete(ctx)
+	return err
 }

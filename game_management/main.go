@@ -1,27 +1,95 @@
 package game_management
 
 import (
-	"context"
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/listeners"
-	"discord-werewolf/lib/models"
-	"fmt"
-	"math/rand"
+	"regexp"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/pkg/errors"
-	"github.com/samber/do"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
+	sets "github.com/hashicorp/go-set/v3"
 )
 
 func Setup() error {
+
+	lib.RegisterGlobalCommand(lib.Command{
+		ApplicationCommand: &discordgo.ApplicationCommand{
+			Name:        "init",
+			Description: "Initializes the server. Wipes out any data previously stored.",
+		},
+		Respond:     InitGuild,
+		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
+	})
+
+	lib.RegisterGlobalCommand(lib.Command{
+		ApplicationCommand: &discordgo.ApplicationCommand{
+			Name:        "ping",
+			Description: "Pings the server. Responds with 'pong'.",
+		},
+		Respond: ping,
+	})
+
+	tzs := lib.AllTimeZoneNames()
+	locationMatcher := regexp.MustCompile(`^([^/])+`)
+	locationSet := sets.New[string](0)
+	for _, tz := range tzs {
+		area := locationMatcher.FindString(tz)
+		if area != "" {
+			locationSet.Insert(area)
+		}
+	}
+	var locationChoices []*discordgo.ApplicationCommandOptionChoice
+	for tzLocation := range locationSet.Items() {
+		if tzLocation == "Etc" {
+			continue
+		}
+		locationChoices = append(locationChoices, &discordgo.ApplicationCommandOptionChoice{
+			Name:  tzLocation,
+			Value: tzLocation,
+		})
+	}
+
+	lib.RegisterGlobalCommand(lib.Command{
+		ApplicationCommand: &discordgo.ApplicationCommand{
+			Name:        "get_timezones",
+			Description: "Get timezones for the server.",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "area",
+					Description: "Get timezones in this general area.",
+					Required:    true,
+					Choices:     locationChoices,
+				},
+			},
+		},
+
+		Respond:     getTimeZones,
+		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
+	})
+
+	lib.RegisterGlobalCommand(lib.Command{
+		ApplicationCommand: &discordgo.ApplicationCommand{
+			Name:        "set_timezone",
+			Description: "Sets the timezone for the server.",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "timezone",
+					Description: "Sets the timezone for the server.",
+					Required:    true,
+				},
+			},
+		},
+
+		Respond:     setTimeZone,
+		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
+	})
+
 	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "playing",
 			Description: "Signs you up for the next round.",
 		},
-
 		Respond: playing,
 	})
 
@@ -40,7 +108,7 @@ func Setup() error {
 			Description: "Starts the game.",
 		},
 
-		Respond:     startGame,
+		Respond:     StartGame,
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
@@ -82,250 +150,11 @@ func Setup() error {
 		Authorizers: []lib.CommandAuthorizer{canVote},
 	})
 
-	listeners.NightStartListeners.Add(hangCharacters)
+	listeners.NightStartListeners.Add(nightListener)
 
 	return nil
 }
 
-func triggerNight(args *lib.InteractionArgs) error {
-	err := args.Interaction.DeferredResponse("Triggering night...", true)
-	if err != nil {
-		return err
-	}
-	if err = StartNight(args.Interaction.GuildId(), args.SessionArgs); err != nil {
-		return err
-	}
-	return args.Interaction.FollowupMessage("Night triggered!", true)
-}
-
-func triggerDay(args *lib.InteractionArgs) error {
-	err := args.Interaction.DeferredResponse("Triggering day...", true)
-	if err != nil {
-		return err
-	}
-	if err = StartDay(args.Interaction.GuildId(), args.SessionArgs); err != nil {
-		return err
-	}
-	return args.Interaction.FollowupMessage("Day triggered!", true)
-}
-
-func hangCharacters(s *lib.SessionArgs, data listeners.NightStartData) error {
-	var err error
-	var result *gorm.DB
-	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
-	ctx := do.MustInvoke[context.Context](s.Injector)
-	townChannel := data.Guild.ChannelByAppId(models.ChannelTownSquare)
-	if townChannel == nil {
-		return errors.New("No town channel found for guild " + data.Guild.Id)
-	}
-	var voted string
-	result = gormDB.
-		Model(&models.GuildVote{}).
-		Select("voting_for_id").
-		Group("voting_for_id").
-		Order("COUNT(*) DESC").
-		Where("guild_id = ?", data.Guild.Id).
-		Limit(1).
-		Pluck("voting_for_id", &voted)
-	if result.Error != nil {
-		msg := fmt.Sprintf("Could not get votes for guild %s with ID %s", data.Guild.Name, data.Guild.Id)
-		return errors.Wrap(result.Error, msg)
-	}
-
-	if voted == "" {
-		msg := &discordgo.MessageEmbed{
-			Type:        discordgo.EmbedTypeRich,
-			Title:       "No one voted.",
-			Description: "No one was hanged.",
-		}
-		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
-			return errors.Wrap(err, "Could not send town channel message")
-		}
-	} else {
-		var character models.GuildCharacter
-		result = gormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).First(&character)
-		if result.Error != nil {
-			return errors.Wrap(result.Error, "Could not find character with ID "+voted)
-		}
-		if err = s.Session.RemoveRole(voted, "Alive"); err != nil {
-			return errors.Wrap(err, "Could not remove Alive role")
-		}
-		if err = s.Session.AssignRole(voted, "Dead"); err != nil {
-			return errors.Wrap(err, "Could not assign Dead role")
-		}
-		msg := &discordgo.MessageEmbed{
-			Type:  discordgo.EmbedTypeRich,
-			Title: fmt.Sprintf("The town has hanged <@%s>.", voted),
-		}
-		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
-			return errors.Wrap(err, "Could not send town channel message")
-		}
-		character.ExtraData["death_cause"] = "hanged"
-		if result = gormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).Save(&character); result.Error != nil {
-			return errors.Wrap(result.Error, "Could not update character with ID "+voted)
-		}
-	}
-	_, err = gorm.G[models.GuildVote](gormDB).Where("guild_id = ?", data.Guild.Id).Delete(ctx)
-	return err
-}
-
-func canVote(ia *lib.InteractionArgs) (bool, error) {
-	// TODO: implement me
-	return true, nil
-}
-
-func voteFor(ia *lib.InteractionArgs) error {
-	// TODO: check if vote should happen
-	guildId := ia.Interaction.GuildId()
-	userId := ia.Interaction.Requester().ID
-	voteForId := ia.Interaction.CommandData().GetOption("user").Value.(string)
-
-	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
-	ctx := do.MustInvoke[context.Context](ia.Injector)
-
-	if voteForId == "" {
-		_, err := gorm.G[models.GuildVote](gormDB).
-			Where("guild_id = ? AND user_id = ?", guildId, userId).
-			Delete(ctx)
-		if err != nil {
-			return err
-		}
-		msg := fmt.Sprintf("<@%s> has removed their vote.", userId)
-		return ia.Interaction.Respond(msg, false)
-	}
-
-	vote := models.GuildVote{
-		GuildId:     ia.Interaction.GuildId(),
-		UserId:      ia.Interaction.Requester().ID,
-		VotingForId: voteForId,
-	}
-	result := gormDB.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "guild_id"}, {Name: "user_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"voting_for_id"}),
-	}).Create(&vote)
-	if result.Error != nil {
-		return result.Error
-	}
-	msg := fmt.Sprintf("<@%s> has voted for <@%s>", userId, voteForId)
-	return ia.Interaction.Respond(msg, false)
-}
-
-// TODO: implement different game modes
-// TODO: enable scheduled start
-func startGame(ia *lib.InteractionArgs) error {
-	var err error
-	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
-	if err = ia.Interaction.DeferredResponse("Starting game...", true); err != nil {
-		return err
-	}
-	defer func() {
-		if err != nil {
-			_ = ia.Interaction.FollowupMessage("Server error starting game.", true)
-		}
-	}()
-
-	var guild *models.Guild
-	var result *gorm.DB
-	if result = gormDB.Where("id = ?", ia.Interaction.GuildId()).First(&guild); result.Error != nil {
-		return result.Error
-	}
-	if result = gormDB.Where("guild_id = ?", ia.Interaction.GuildId()).Delete(&models.GuildCharacter{}); result.Error != nil {
-		return result.Error
-	}
-	if result = gormDB.Where("guild_id = ?", ia.Interaction.GuildId()).Delete(&models.GuildVote{}); result.Error != nil {
-		return result.Error
-	}
-
-	// Clear town channels
-	catTown := guild.ChannelByAppId(models.CatChannelTheTown)
-	for _, channel := range *catTown.Children {
-		if err = ia.Session.ClearChannelMessages(channel.Id); err != nil {
-			return err
-		}
-	}
-
-	players, err := ia.Session.GuildMembersWithRole(lib.RolePlaying)
-	if err != nil {
-		return err
-	}
-
-	if len(players) == 0 {
-		return ia.Interaction.FollowupMessage("Nobody is playing!", true)
-	}
-
-	// Randomly mix players
-	for i := range players {
-		j := rand.Intn(i + 1)
-		players[i], players[j] = players[j], players[i]
-	}
-
-	characters := make([]models.GuildCharacter, 0)
-
-	for i, player := range players {
-		character := models.GuildCharacter{
-			Id:        player.User.ID,
-			GuildId:   ia.Interaction.GuildId(),
-			ExtraData: models.JsonMap{},
-		}
-		if i%3 == 0 {
-			character.CharacterId = models.CharacterWolf
-		} else {
-			character.CharacterId = models.CharacterVillager
-		}
-		characters = append(characters, character)
-	}
-
-	if result = gormDB.Save(&characters); result.Error != nil {
-		return result.Error
-	}
-
-	for _, character := range characters {
-		if err = ia.Session.RemoveRole(character.Id, lib.RolePlaying); err != nil {
-			return errors.Wrap(err, "could not remove playing role from user")
-		}
-		if err = ia.Session.RemoveRole(character.Id, lib.RoleDead); err != nil {
-			return errors.Wrap(err, "could not remove dead role from user")
-		}
-		if err = ia.Session.AssignRole(character.Id, lib.RoleAlive); err != nil {
-			return errors.Wrap(err, "could not assign alive role to user")
-		}
-	}
-
-	err = listeners.GameStartListeners.Trigger(&ia.SessionArgs, listeners.GameStartData{
-		Guild:      *guild,
-		Characters: characters,
-	})
-	if err != nil {
-		return err
-	}
-
-	townChannel := guild.ChannelByAppId(models.ChannelTownSquare)
-	if townChannel == nil {
-		return errors.New("could not find town square channel")
-	}
-
-	err = ia.Session.Message(townChannel.Id, "Welcome to the town-square! Here you will vote for who you think the werewolves are.")
-	if err != nil {
-		return errors.Wrap(err, "could not send welcome message to town square")
-	}
-
-	err = ia.Interaction.FollowupMessage("Game started", true)
-	if err != nil {
-		return errors.Wrap(err, "could not follow up message")
-	}
-	return nil
-}
-
-func playing(ia *lib.InteractionArgs) error {
-	if err := ia.Interaction.AssignRoleToRequester(lib.RolePlaying); err != nil {
-		return err
-	}
-	return ia.Interaction.Respond("Now playing!", false)
-}
-
-func stopPlaying(ia *lib.InteractionArgs) error {
-	if err := ia.Interaction.RemoveRoleFromRequester(lib.RolePlaying); err != nil {
-		return err
-	}
-	return ia.Interaction.Respond("Stopped playing.", false)
+func ping(ia *lib.InteractionArgs) error {
+	return ia.Interaction.Respond("Pong!", false)
 }

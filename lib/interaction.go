@@ -31,6 +31,7 @@ type Interaction interface {
 	RequesterHasRole(roleName string) (bool, error)
 	Requester() *discordgo.User
 	CommandData() discordgo.ApplicationCommandInteractionData
+	ChannelId() string
 }
 
 // TODO: make tests for live interaction with real discord server
@@ -45,6 +46,10 @@ func NewLiveInteraction(interaction *discordgo.InteractionCreate) Interaction {
 type LiveInteraction struct {
 	session     DiscordSession
 	interaction *discordgo.InteractionCreate
+}
+
+func (l LiveInteraction) ChannelId() string {
+	return l.interaction.ChannelID
 }
 
 func (l LiveInteraction) CommandData() discordgo.ApplicationCommandInteractionData {
