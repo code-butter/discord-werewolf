@@ -1,4 +1,4 @@
-package game_management
+package shared
 
 import (
 	"discord-werewolf/lib"
@@ -12,10 +12,10 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-var initialChannels map[string]models.GuildChannel
+var InitialChannels map[string]models.GuildChannel
 
 func init() {
-	initialChannels = map[string]models.GuildChannel{
+	InitialChannels = map[string]models.GuildChannel{
 		"game-instructions": {
 			Name:     "Game Instructions",
 			AppId:    models.CatChannelInstructions,
@@ -60,7 +60,14 @@ func init() {
 	}
 }
 
-// This is public for tests in other packages
+// Setup is shared between tests and the application
+func Setup() *do.Injector {
+	injector := do.New()
+	do.ProvideValue[*lib.GameListeners](injector, lib.NewGameListeners())
+	do.Provide[*lib.GuildSettings](injector, lib.NewGameSettings)
+	return injector
+}
+
 func InitGuild(ia *lib.InteractionArgs) error {
 	var err error
 
@@ -134,7 +141,7 @@ func InitGuild(ia *lib.InteractionArgs) error {
 	}
 
 	saveChannels := models.GuildChannels{}
-	for _, initChannel := range initialChannels {
+	for _, initChannel := range InitialChannels {
 		discordCat, err := ia.Session.CreateCategoryChannel(initChannel.Name)
 		if err != nil {
 			return errors.Wrap(err, "Could not create category channel")

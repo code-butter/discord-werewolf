@@ -3,7 +3,6 @@ package game_management
 import (
 	"context"
 	"discord-werewolf/lib"
-	"discord-werewolf/lib/listeners"
 	"discord-werewolf/lib/models"
 	"fmt"
 	"log"
@@ -15,15 +14,16 @@ import (
 	"gorm.io/gorm"
 )
 
-func StartDay(guildId string, s lib.SessionArgs) error {
+func startDay(guildId string, s lib.SessionArgs) error {
 	var err error
 	var result *gorm.DB
 	var guild models.Guild
 	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
+	l := do.MustInvoke[*lib.GameListeners](s.Injector)
 	if result = gormDB.Where("id = ?", guildId).First(&guild); result.Error != nil {
 		return errors.Wrap(result.Error, "Guild not found")
 	}
-	err = listeners.DayStartListeners.Trigger(&s, listeners.DayStartData{
+	err = l.DayStart.Trigger(&s, lib.DayStartData{
 		Guild: guild,
 	})
 	if err != nil {
@@ -37,16 +37,18 @@ func StartDay(guildId string, s lib.SessionArgs) error {
 	return nil
 }
 
-func StartNight(guildId string, s lib.SessionArgs) error {
+func startNight(guildId string, s lib.SessionArgs) error {
 	var err error
 	var result *gorm.DB
 	var guild models.Guild
 
 	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
+	l := do.MustInvoke[*lib.GameListeners](s.Injector)
+
 	if result = gormDB.Where("id = ?", guildId).First(&guild); result.Error != nil {
 		return errors.Wrap(result.Error, "Guild not found")
 	}
-	err = listeners.NightStartListeners.Trigger(&s, listeners.NightStartData{
+	err = l.NightStart.Trigger(&s, lib.NightStartData{
 		Guild: guild,
 	})
 	if err != nil {
@@ -59,7 +61,7 @@ func StartNight(guildId string, s lib.SessionArgs) error {
 	return nil
 }
 
-func TimedDayNight(i *do.Injector) {
+func TimedDayNight(i *do.Injector, loopSleep time.Duration) {
 	var err error
 
 	clock := do.MustInvoke[lib.Clock](i)
@@ -74,34 +76,18 @@ func TimedDayNight(i *do.Injector) {
 	}
 
 	for ctx.Err() == nil {
-		cutoff := clock.Now().UTC().Add(-23*time.Hour + 59*time.Minute)
 		now := clock.Now().UTC()
+		cutoff := now.Add(-24 * time.Hour)
+
 		var guilds []models.Guild
 		if result := gormDB.Where("game_going = 1 AND paused = 0").Find(&guilds); result.Error != nil {
-			panic(result.Error)
+			log.Printf("Could not get guilds: %v", result.Error)
 		}
 		var finishedGuildIds []string
 		for _, guild := range guilds {
-			lastCycleRan := guild.LastCycleRan
-			if lastCycleRan == nil {
-				lastCycleRan = &now
-			}
 			sa := lib.SessionArgs{
 				Session:  lib.GetGuildDiscordSession(guild.Id),
 				Injector: i,
-			}
-			if lastCycleRan.Before(cutoff) {
-				if guild.DayNight {
-					err = StartNight(guild.Id, sa)
-				} else {
-					err = StartDay(guild.Id, sa)
-				}
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-				finishedGuildIds = append(finishedGuildIds, guild.Id)
-				continue
 			}
 			var guildTz *time.Location
 			if guild.TimeZone == "" {
@@ -113,27 +99,56 @@ func TimedDayNight(i *do.Injector) {
 					guildTz = systemTz
 				}
 			}
-			if guild.DayNight {
-				nightTime := guild.NightTime
-				if nightTime == nil {
-					newNightTime := time.Date(0, 0, 0, 18, 0, 0, 0, guildTz).UTC()
-					nightTime = &models.TimeOnly{Time: &newNightTime}
+			guildNow := now.In(guildTz)
+
+			var lastCycleRan time.Time
+			lastCycleRan, err = time.ParseInLocation(time.DateTime, guild.LastCycleRan, time.UTC)
+			if err != nil {
+				log.Printf("Error parsing last cycle time: %s\n", err)
+				continue
+			}
+
+			lastCycleRan = lastCycleRan.In(guildTz)
+
+			// If it's been longer than a day
+			if lastCycleRan.Before(cutoff) {
+				if guild.DayNight {
+					if err = startNight(guild.Id, sa); err != nil {
+						log.Println(err)
+						continue
+					}
+				} else {
+					if err = startDay(guild.Id, sa); err != nil {
+						log.Println(err)
+						continue
+					}
 				}
-				if nightTime.BeforeOrOn(now) && nightTime.AfterOrOn(*lastCycleRan) {
-					if err = StartNight(guild.Id, sa); err != nil {
+				finishedGuildIds = append(finishedGuildIds, guild.Id)
+				continue
+			}
+
+			guildNightTime := guild.NightTime
+			if guildNightTime == nil {
+				guildNightTime = models.NewTimeOnly(18, 0, 0)
+			}
+			guildDayTime := guild.DayTime
+			if guildDayTime == nil {
+				guildDayTime = models.NewTimeOnly(6, 0, 0)
+			}
+			nightTime := guildNightTime.TimeOnDate(guildNow)
+			dayTime := guildDayTime.TimeOnDate(guildNow)
+
+			if guild.DayNight {
+				if lastCycleRan.Before(nightTime) && guildNow.After(nightTime) {
+					if err = startNight(guild.Id, sa); err != nil {
 						log.Println(err)
 						continue
 					}
 					finishedGuildIds = append(finishedGuildIds, guild.Id)
 				}
 			} else {
-				dayTime := guild.DayTime
-				if dayTime == nil {
-					newDayTime := time.Date(0, 0, 0, 6, 0, 0, 0, guildTz).UTC()
-					dayTime = &models.TimeOnly{Time: &newDayTime}
-				}
-				if dayTime.BeforeOrOn(now) && dayTime.AfterOrOn(*lastCycleRan) {
-					if err = StartDay(guild.Id, sa); err != nil {
+				if lastCycleRan.Before(dayTime) && guildNow.After(dayTime) {
+					if err = startDay(guild.Id, sa); err != nil {
 						log.Println(err)
 						continue
 					}
@@ -143,11 +158,11 @@ func TimedDayNight(i *do.Injector) {
 		}
 		_, err = gorm.G[models.Guild](gormDB).
 			Where("id in ?", finishedGuildIds).
-			Update(ctx, "last_cycle_ran", now)
+			Update(ctx, "last_cycle_ran", now.Format(time.DateTime))
 		if err != nil {
 			lib.Fatal(err)
 		}
-		time.Sleep(time.Second * 15)
+		time.Sleep(loopSleep)
 	}
 }
 
@@ -156,7 +171,7 @@ func triggerNight(args *lib.InteractionArgs) error {
 	if err != nil {
 		return err
 	}
-	if err = StartNight(args.Interaction.GuildId(), args.SessionArgs); err != nil {
+	if err = startNight(args.Interaction.GuildId(), args.SessionArgs); err != nil {
 		return err
 	}
 	return args.Interaction.FollowupMessage("Night triggered!", true)
@@ -167,13 +182,13 @@ func triggerDay(args *lib.InteractionArgs) error {
 	if err != nil {
 		return err
 	}
-	if err = StartDay(args.Interaction.GuildId(), args.SessionArgs); err != nil {
+	if err = startDay(args.Interaction.GuildId(), args.SessionArgs); err != nil {
 		return err
 	}
 	return args.Interaction.FollowupMessage("Day triggered!", true)
 }
 
-func nightListener(s *lib.SessionArgs, data listeners.NightStartData) error {
+func nightListener(s *lib.SessionArgs, data lib.NightStartData) error {
 	var err error
 	var result *gorm.DB
 	gormDB := do.MustInvoke[*gorm.DB](s.Injector)

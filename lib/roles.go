@@ -1,8 +1,8 @@
 package lib
 
-var Roles map[string]WerewolfRole
+var Roles map[string]PlayerRole
 
-type WerewolfRole struct {
+type PlayerRole struct {
 	Name  string
 	Color int
 }
@@ -13,7 +13,7 @@ const RoleDead = "Dead"
 const RoleAdmin = "Admin"
 
 func init() {
-	rolesArray := []WerewolfRole{
+	rolesArray := []PlayerRole{
 		{
 			Name:  RolePlaying,
 			Color: 0xFFDD81,
@@ -31,7 +31,7 @@ func init() {
 			Color: 0x2025B7,
 		},
 	}
-	Roles = map[string]WerewolfRole{}
+	Roles = map[string]PlayerRole{}
 	for _, role := range rolesArray {
 		Roles[role.Name] = role
 	}

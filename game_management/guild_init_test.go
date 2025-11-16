@@ -3,12 +3,14 @@ package game_management
 import (
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/models"
+	"discord-werewolf/lib/shared"
 	"discord-werewolf/lib/testlib"
 	"fmt"
 	"iter"
 	"maps"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
@@ -28,11 +30,12 @@ func TestServerInit(t *testing.T) {
 	session := testlib.NewGuildTestSession(guildId, guildName, testlib.TestSessionOptions{
 		Owner: owner,
 	})
-	sessionArgs := testlib.TestInit(session)
+	clock := testlib.NewMockClock(time.Now())
+	sessionArgs := testlib.TestInit(session, clock)
 	args := testlib.InteractionInit(sessionArgs, testlib.TestInteractionOptions{
 		Requester: owner,
 	})
-	if err := InitGuild(&args); err != nil {
+	if err := shared.InitGuild(&args); err != nil {
 		t.Fatal(err)
 	}
 	var guild models.Guild
@@ -50,7 +53,7 @@ func TestServerInit(t *testing.T) {
 	discordChannels, _ := args.Session.Channels()
 	dbChannels := maps.Values(guild.Channels)
 
-	for _, ic := range initialChannels {
+	for _, ic := range shared.InitialChannels {
 		var err error
 		var parentChannel *models.GuildChannel
 		if parentChannel, err = verifyChannels(ic.AppId, dbChannels, discordChannels); err != nil {

@@ -2,21 +2,25 @@ package game_management
 
 import (
 	"discord-werewolf/lib"
-	"discord-werewolf/lib/listeners"
+	"discord-werewolf/lib/shared"
 	"regexp"
 
 	"github.com/bwmarrin/discordgo"
 	sets "github.com/hashicorp/go-set/v3"
+	"github.com/samber/do"
 )
 
-func Setup() error {
+func Setup(injector *do.Injector) error {
+
+	l := do.MustInvoke[*lib.GameListeners](injector)
+	l.NightStart.Add(nightListener)
 
 	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "init",
 			Description: "Initializes the server. Wipes out any data previously stored.",
 		},
-		Respond:     InitGuild,
+		Respond:     shared.InitGuild,
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
@@ -108,7 +112,7 @@ func Setup() error {
 			Description: "Starts the game.",
 		},
 
-		Respond:     StartGame,
+		Respond:     shared.StartGame,
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
@@ -149,8 +153,6 @@ func Setup() error {
 		Respond:     voteFor,
 		Authorizers: []lib.CommandAuthorizer{canVote},
 	})
-
-	listeners.NightStartListeners.Add(nightListener)
 
 	return nil
 }

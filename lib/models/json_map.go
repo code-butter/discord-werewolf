@@ -2,7 +2,6 @@ package models
 
 import (
 	"database/sql/driver"
-	"discord-werewolf/lib"
 	"encoding/json"
 )
 
@@ -12,7 +11,7 @@ func (m JsonMap) Value() (driver.Value, error) {
 	return json.Marshal(m)
 }
 func (m *JsonMap) Scan(value interface{}) error {
-	return lib.UnMarshalBytes(m, value)
+	return UnmarshalBytes(m, value)
 }
 
 func (m JsonMap) GormDataType() string {

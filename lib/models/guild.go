@@ -4,7 +4,8 @@ import (
 	"iter"
 	"maps"
 	"slices"
-	"time"
+
+	"gorm.io/datatypes"
 )
 
 type Guild struct {
@@ -17,8 +18,8 @@ type Guild struct {
 	TimeZone     string
 	DayTime      *TimeOnly
 	NightTime    *TimeOnly
-	GameSettings JsonMap
-	LastCycleRan *time.Time `gorm:"type:datetime"`
+	GameSettings datatypes.JSONMap
+	LastCycleRan string
 }
 
 func findChannel(appId string, channels iter.Seq[GuildChannel]) *GuildChannel {
@@ -41,15 +42,9 @@ func (m *Guild) ChannelByAppId(appId string) *GuildChannel {
 }
 
 func (m *Guild) Set(settingName string, value interface{}) {
-	if m.GameSettings == nil {
-		m.GameSettings = JsonMap{}
-	}
 	m.GameSettings[settingName] = value
 }
 
 func (m *Guild) Get(settingName string) interface{} {
-	if m.GameSettings == nil {
-		m.GameSettings = JsonMap{}
-	}
 	return m.GameSettings[settingName]
 }

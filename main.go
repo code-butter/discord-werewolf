@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"discord-werewolf/game_management"
 	"discord-werewolf/lib"
+	"discord-werewolf/lib/shared"
 	"discord-werewolf/werewolves"
 	"fmt"
 	"log"
@@ -33,7 +34,7 @@ func main() {
 		lib.Fatal("CLIENT_ID environment variable not set")
 	}
 
-	injector := do.New()
+	injector := shared.Setup()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -73,18 +74,18 @@ func main() {
 
 	do.ProvideValue[*discordgo.Session](injector, discordClient)
 
-	// Setup sections. Keep in mind that order is important here. Callbacks will be run in the order they
-	// are set up in these functions.
-	if err = game_management.Setup(); err != nil {
-		lib.Fatal(err)
-	}
-	if err = werewolves.Setup(); err != nil {
-		lib.Fatal(err)
-	}
-
 	clock := lib.RealClock{}
 
 	do.ProvideValue[lib.Clock](injector, clock)
+
+	// Setup sections. Keep in mind that order is important here. Callbacks will be run in the order they
+	// are set up in these functions.
+	if err = game_management.Setup(injector); err != nil {
+		lib.Fatal(err)
+	}
+	if err = werewolves.Setup(injector); err != nil {
+		lib.Fatal(err)
+	}
 
 	// Discord handlers
 	commands := lib.GetGlobalCommands()
@@ -157,7 +158,7 @@ func main() {
 	}
 
 	// Start timers
-	go game_management.TimedDayNight(injector)
+	go game_management.TimedDayNight(injector, time.Second*15)
 
 	log.Printf("System timezone: %s\n", currentTz)
 

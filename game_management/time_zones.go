@@ -1,15 +1,12 @@
 package game_management
 
 import (
-	"context"
 	"discord-werewolf/lib"
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/samber/do"
-	"gorm.io/gorm"
 )
 
 func getTimeZones(ia *lib.InteractionArgs) error {
@@ -36,19 +33,9 @@ func getTimeZones(ia *lib.InteractionArgs) error {
 }
 
 func setTimeZone(ia *lib.InteractionArgs) error {
-	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
-	ctx := do.MustInvoke[context.Context](ia.Injector)
-
-	data := ia.Interaction.CommandData()
-	tzName := data.GetOption("timezone").Value.(string)
-	_, err := time.LoadLocation(tzName)
-	if err != nil {
-		_ = ia.Interaction.Respond("Unable to set timezone", true)
-		return err
-	}
-	err = gorm.G[any](gormDB).
-		Exec(ctx, "UPDATE guilds SET time_zone = ? WHERE id = ?", tzName, ia.Interaction.GuildId())
-	if err != nil {
+	settings := do.MustInvoke[*lib.GuildSettings](ia.Injector)
+	tzName := ia.Interaction.CommandData().GetOption("timezone").Value.(string)
+	if err := settings.SetTimeZone(ia.Interaction.GuildId(), tzName); err != nil {
 		_ = ia.Interaction.Respond("Unable to set timezone", true)
 		return err
 	}

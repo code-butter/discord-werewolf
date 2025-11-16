@@ -2,7 +2,6 @@ package werewolves
 
 import (
 	"discord-werewolf/lib"
-	"discord-werewolf/lib/listeners"
 	"discord-werewolf/lib/models"
 	"fmt"
 	"strings"
@@ -14,7 +13,9 @@ import (
 	"gorm.io/gorm"
 )
 
-func Setup() error {
+func Setup(injector *do.Injector) error {
+	l := do.MustInvoke[*lib.GameListeners](injector)
+
 	lib.RegisterGlobalCommand(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "kill",
@@ -32,8 +33,8 @@ func Setup() error {
 		Authorizers: []lib.CommandAuthorizer{canKill},
 	})
 
-	listeners.GameStartListeners.Add(startGameListener)
-	listeners.DayStartListeners.Add(dayStartListener)
+	l.GameStart.Add(startGameListener)
+	l.DayStart.Add(dayStartListener)
 
 	return nil
 }
@@ -92,7 +93,7 @@ func voteKill(ia *lib.InteractionArgs) error {
 	return ia.Interaction.Respond(msg, false)
 }
 
-func startGameListener(s *lib.SessionArgs, data listeners.GameStartData) error {
+func startGameListener(s *lib.SessionArgs, data lib.GameStartData) error {
 	var err error
 	wolvesChannel := data.Guild.ChannelByAppId(models.ChannelWerewolves)
 	if wolvesChannel == nil {
@@ -116,7 +117,7 @@ func startGameListener(s *lib.SessionArgs, data listeners.GameStartData) error {
 	wolfMsg := strings.Join(wolfMentions, ", ")
 	return s.Session.Message(wolvesChannel.Id, msg+wolfMsg)
 }
-func dayStartListener(s *lib.SessionArgs, data listeners.DayStartData) error {
+func dayStartListener(s *lib.SessionArgs, data lib.DayStartData) error {
 	var err error
 	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
 	var result *gorm.DB

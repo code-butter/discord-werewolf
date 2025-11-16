@@ -6,6 +6,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/pkg/errors"
+	"github.com/samber/do"
 )
 
 // TODO: implement retry-after logic for API limits and service outages
@@ -13,6 +14,11 @@ import (
 
 var botConnection *discordgo.Session
 var mapLock = NewMapLock[*GuildDiscordSession]()
+
+type SessionArgs struct {
+	Session  DiscordSession
+	Injector *do.Injector
+}
 
 type DiscordSession interface {
 	// Guild gets the server's guild object

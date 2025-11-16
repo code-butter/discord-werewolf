@@ -9,6 +9,11 @@ type TimeOnly struct {
 	*time.Time
 }
 
+func NewTimeOnly(hours, minutes, seconds int) *TimeOnly {
+	time := time.Date(0, 0, 0, hours, minutes, seconds, 0, time.UTC)
+	return &TimeOnly{Time: &time}
+}
+
 func (m TimeOnly) Value() (driver.Value, error) {
 	return m.Time.Format(time.TimeOnly), nil
 }
@@ -25,30 +30,6 @@ func (m TimeOnly) GormDataType() string {
 	return "time_only"
 }
 
-func (m TimeOnly) BeforeOrOn(t time.Time) bool {
-	mTime := []int{m.Time.Hour(), m.Time.Minute(), m.Time.Second()}
-	tTime := []int{t.Hour(), t.Minute(), t.Second()}
-	for i, mt := range mTime {
-		if mt < tTime[i] {
-			return true
-		}
-		if mt > tTime[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func (m TimeOnly) AfterOrOn(t time.Time) bool {
-	mTime := []int{m.Time.Hour(), m.Time.Minute(), m.Time.Second()}
-	tTime := []int{t.Hour(), t.Minute(), t.Second()}
-	for i, mt := range mTime {
-		if mt > tTime[i] {
-			return true
-		}
-		if mt < tTime[i] {
-			return false
-		}
-	}
-	return true
+func (m TimeOnly) TimeOnDate(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), m.Hour(), m.Minute(), m.Second(), 0, t.Location())
 }

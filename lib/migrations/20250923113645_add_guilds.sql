@@ -9,8 +9,8 @@ CREATE TABLE guilds (
     day_night       INTEGER DEFAULT 0,          -- bool
     paused          INTEGER DEFAULT 0,          -- bool
     time_zone       VARCHAR(50) DEFAULT '',
-    day_time        VARCHAR(5) DEFAULT '',      -- time-only (UTC)
-    night_time      VARCHAR(5) DEFAULT '',      -- time-only (UTC)
+    day_time        VARCHAR(5) DEFAULT '',      -- time-only (guild tz)
+    night_time      VARCHAR(5) DEFAULT '',      -- time-only (guild tz)
     game_settings   TEXT,                       -- json
     last_cycle_ran  TEXT                        -- date-time (UTC)
 );
