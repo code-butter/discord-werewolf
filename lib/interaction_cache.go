@@ -15,8 +15,8 @@ type InteractionCache[T any] struct {
 	clock           Clock
 }
 
-func NewInteractionCache[T any](expiresDuration time.Duration, clock Clock) InteractionCache[T] {
-	return InteractionCache[T]{
+func NewInteractionCache[T any](expiresDuration time.Duration, clock Clock) *InteractionCache[T] {
+	return &InteractionCache[T]{
 		interactionCacheMap: interactionCacheMap[T]{},
 		expiresDuration:     expiresDuration,
 		clock:               clock,

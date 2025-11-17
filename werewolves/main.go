@@ -30,7 +30,7 @@ func Setup(injector *do.Injector) error {
 			}},
 
 		Respond:     voteKill,
-		Authorizers: []lib.CommandAuthorizer{canKill},
+		Authorizers: []lib.CommandAuthorizer{lib.IsAlive, canKill},
 	})
 
 	l.GameStart.Add(startGameListener)
@@ -39,25 +39,26 @@ func Setup(injector *do.Injector) error {
 	return nil
 }
 
-func canKill(ia *lib.InteractionArgs) (bool, error) {
-	var result *gorm.DB
-	var character models.GuildCharacter
-
-	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
-	result = gormDB.
-		Where("guild_id = ? AND id = ?", ia.Interaction.GuildId(), ia.Interaction.Requester().ID).
-		First(&character)
-	if result.Error != nil {
-		return false, result.Error
+func canKill(ia *lib.InteractionArgs) error {
+	character, err := ia.GuildCharacter(ia.Interaction.Requester().ID)
+	if err != nil {
+		return err
 	}
 	if character.CharacterId != models.CharacterWolf && character.CharacterId != models.CharacterWolfCub {
-		return false, nil
+		return lib.NewPermissionDeniedError("You're not a wolf!")
 	}
-	return true, nil
+	guild, err := ia.AppGuild()
+	if err != nil {
+		return err
+	}
+	wolfChannel := guild.ChannelByAppId(models.ChannelWerewolves)
+	if wolfChannel.Id != ia.Interaction.ChannelId() {
+		return lib.NewPermissionDeniedError("You are not in the wolves' channel.")
+	}
+	return nil
 }
 
 func voteKill(ia *lib.InteractionArgs) error {
-	// TODO: figure out how to accurately track double kill ability
 	var result *gorm.DB
 	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
 	var vote *WerewolfKillVote

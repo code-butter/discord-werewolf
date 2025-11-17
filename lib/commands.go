@@ -10,7 +10,7 @@ type Command struct {
 	Authorizers []CommandAuthorizer
 }
 
-type CommandAuthorizer func(ia *InteractionArgs) (bool, error)
+type CommandAuthorizer func(ia *InteractionArgs) error
 
 func RegisterGlobalCommand(c Command) {
 	if _, ok := globalCommands[c.Name]; ok {

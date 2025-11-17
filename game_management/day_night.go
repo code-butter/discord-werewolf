@@ -67,6 +67,7 @@ func TimedDayNight(i *do.Injector, loopSleep time.Duration) {
 	clock := do.MustInvoke[lib.Clock](i)
 	ctx := do.MustInvoke[context.Context](i)
 	gormDB := do.MustInvoke[*gorm.DB](i)
+	sessionProvider := do.MustInvoke[lib.DiscordSessionProvider](i)
 
 	systemTz, err := lib.SystemTimeZone()
 
@@ -86,7 +87,7 @@ func TimedDayNight(i *do.Injector, loopSleep time.Duration) {
 		var finishedGuildIds []string
 		for _, guild := range guilds {
 			sa := lib.SessionArgs{
-				Session:  lib.GetGuildDiscordSession(guild.Id),
+				Session:  sessionProvider.GetSession(guild.Id),
 				Injector: i,
 			}
 			var guildTz *time.Location

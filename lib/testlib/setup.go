@@ -36,11 +36,14 @@ func TestInit(session lib.DiscordSession, clock *MockClock) lib.SessionArgs {
 	if err := lib.MigrateUp(db); err != nil {
 		log.Fatal(err)
 	}
+	guild, _ := session.Guild()
+	sessionProvider := NewTestDiscordSessionProvider(map[string]lib.DiscordSession{guild.ID: session})
 
 	injector := shared.Setup()
 	do.ProvideValue[*gorm.DB](injector, gormDB)
 	do.ProvideValue[context.Context](injector, context.Background())
 	do.ProvideValue[lib.Clock](injector, clock)
+	do.ProvideValue[lib.DiscordSessionProvider](injector, sessionProvider)
 
 	return lib.SessionArgs{
 		Session:  session,

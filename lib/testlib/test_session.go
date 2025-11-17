@@ -1,14 +1,36 @@
 package testlib
 
 import (
+	"discord-werewolf/lib"
+
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
+type TestDiscordSessionProvider struct {
+	sessions map[string]lib.DiscordSession
+}
+
+func NewTestDiscordSessionProvider(sessionMap map[string]lib.DiscordSession) *TestDiscordSessionProvider {
+	return &TestDiscordSessionProvider{
+		sessions: sessionMap,
+	}
+}
+
+func (t TestDiscordSessionProvider) GetSession(guildId string) lib.DiscordSession {
+	return t.sessions[guildId]
+}
+
 func NewTestSession(options TestSessionOptions) *TestSession {
+	var id string
+	if options.Id == nil {
+		id = uuid.NewString()
+	} else {
+		id = *options.Id
+	}
 	return &TestSession{
-		GuildId:       uuid.NewString(),
+		GuildId:       id,
 		Name:          "Test Guild",
 		GuildChannels: options.Channels,
 		GuildRoles:    options.GuildRoles,
@@ -29,6 +51,7 @@ func NewGuildTestSession(guildId string, name string, options TestSessionOptions
 }
 
 type TestSessionOptions struct {
+	Id           *string
 	Channels     []*discordgo.Channel
 	GuildMembers []*discordgo.Member
 	GuildRoles   []*discordgo.Role

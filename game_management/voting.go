@@ -11,9 +11,16 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-func canVote(ia *lib.InteractionArgs) (bool, error) {
-	// TODO: implement me
-	return true, nil
+func canVote(ia *lib.InteractionArgs) error {
+	guild, err := ia.AppGuild()
+	if err != nil {
+		return err
+	}
+	wolfChannel := guild.ChannelByAppId(models.ChannelTownSquare)
+	if wolfChannel.Id != ia.Interaction.ChannelId() {
+		return lib.NewPermissionDeniedError("You are not in the town square. Vote there.")
+	}
+	return nil
 }
 
 func voteFor(ia *lib.InteractionArgs) error {

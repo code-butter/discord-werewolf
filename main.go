@@ -65,18 +65,22 @@ func main() {
 		lib.Fatal(errors.Wrap(err, "Could not apply migrations"))
 	}
 
+	clock := lib.RealClock{}
+
+	do.ProvideValue[lib.Clock](injector, clock)
+
 	// Setup Discord
 	var discordClient *discordgo.Session
 	if discordClient, err = discordgo.New("Bot " + token); err != nil {
 		lib.Fatal(err)
 	}
-	lib.SetBotConnection(discordClient)
 
-	do.ProvideValue[*discordgo.Session](injector, discordClient)
-
-	clock := lib.RealClock{}
-
-	do.ProvideValue[lib.Clock](injector, clock)
+	var sessionGetter lib.GuildSessionGetter
+	sessionGetter = func(guildId string) (lib.DiscordSession, error) {
+		return lib.NewGuildDiscordSession(guildId, discordClient, 3*time.Minute, clock), nil
+	}
+	sessionProvider := lib.NewDiscordSessionProvider(sessionGetter)
+	do.ProvideValue[lib.DiscordSessionProvider](injector, sessionProvider)
 
 	// Setup sections. Keep in mind that order is important here. Callbacks will be run in the order they
 	// are set up in these functions.
@@ -92,32 +96,29 @@ func main() {
 	discordClient.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		var err error
 		if i.Type == discordgo.InteractionApplicationCommand {
+			session := sessionProvider.GetSession(i.GuildID)
 			commandName := i.ApplicationCommandData().Name
-			interaction := lib.NewLiveInteraction(i)
+			interaction := lib.NewLiveInteraction(i, session)
 			if cmd, ok := commands[commandName]; ok {
 				interactionArgs := &lib.InteractionArgs{
 					SessionArgs: lib.SessionArgs{
-						Session:  lib.GetGuildDiscordSession(i.GuildID),
+						Session:  session,
 						Injector: injector,
 					},
 					Interaction: interaction,
 				}
 				if len(cmd.Authorizers) > 0 {
-					authorized := false
 					for _, auth := range cmd.Authorizers {
-						a, err := auth(interactionArgs)
+						err := auth(interactionArgs)
 						if err != nil {
-							errorRespond(interaction, fmt.Sprintf("Could not authorize command: %s", err.Error()))
+							if errors.Is(err, lib.PermissionDeniedError{}) {
+								if err = interactionArgs.Interaction.Respond(err.Error(), true); err != nil {
+									log.Println(err)
+								}
+							} else {
+								errorRespond(interaction, fmt.Sprintf("Could not authorize command: %s", err.Error()))
+							}
 							return
-						}
-						if a {
-							authorized = true
-							break
-						}
-					}
-					if !authorized {
-						if err = interactionArgs.Interaction.Respond("unauthorized", true); err != nil {
-							log.Println(err)
 						}
 					}
 				}

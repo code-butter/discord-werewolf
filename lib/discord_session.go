@@ -1,23 +1,54 @@
 package lib
 
 import (
+	"discord-werewolf/lib/models"
 	"fmt"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/pkg/errors"
 	"github.com/samber/do"
+	"gorm.io/gorm"
 )
 
 // TODO: implement retry-after logic for API limits and service outages
 // TODO: add context listener for application shutdown
 
-var botConnection *discordgo.Session
-var mapLock = NewMapLock[*GuildDiscordSession]()
-
 type SessionArgs struct {
 	Session  DiscordSession
 	Injector *do.Injector
+	guild    *models.Guild
+}
+
+func (args *SessionArgs) AppGuild() (*models.Guild, error) {
+	if args.guild == nil {
+		db := do.MustInvoke[*gorm.DB](args.Injector)
+		guild, err := args.Session.Guild()
+		if err != nil {
+			return nil, err
+		}
+		result := db.Model((*models.Guild)(nil)).Where("id = ?", guild.ID).First(args.guild)
+		if result.Error != nil {
+			return nil, result.Error
+		}
+	}
+	return args.guild, nil
+}
+
+func (args *SessionArgs) GuildCharacter(id string) (*models.GuildCharacter, error) {
+	gormDB := do.MustInvoke[*gorm.DB](args.Injector)
+	guild, err := args.Session.Guild()
+	if err != nil {
+		return nil, err
+	}
+	var character models.GuildCharacter
+	result := gormDB.
+		Where("guild_id = ? AND id = ?", guild.ID, id).
+		First(&character)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &character, nil
 }
 
 type DiscordSession interface {
@@ -67,19 +98,37 @@ type DiscordSession interface {
 	DeleteChannelOverridePermissions(channelId string, id string) error
 }
 
-func SetBotConnection(c *discordgo.Session) {
-	botConnection = c
+type DiscordSessionProvider interface {
+	GetSession(guildId string) DiscordSession
 }
 
-func GetGuildDiscordSession(guildId string) *GuildDiscordSession {
-	value, _ := mapLock.GetOrSet(guildId, func() (*GuildDiscordSession, error) {
-		return &GuildDiscordSession{
-			guildID:   guildId,
-			session:   botConnection,
-			roleCache: &InteractionCache[[]*discordgo.Role]{},
-		}, nil
+type LiveDiscordSessionProvider struct {
+	getter  GuildSessionGetter
+	mapLock *MapLock[DiscordSession]
+}
+
+type GuildSessionGetter func(guildId string) (DiscordSession, error)
+
+func NewDiscordSessionProvider(getter GuildSessionGetter) *LiveDiscordSessionProvider {
+	return &LiveDiscordSessionProvider{
+		getter:  getter,
+		mapLock: NewMapLock[DiscordSession](),
+	}
+}
+
+func (g *LiveDiscordSessionProvider) GetSession(guildId string) DiscordSession {
+	value, _ := g.mapLock.GetOrSet(guildId, func() (DiscordSession, error) {
+		return g.getter(guildId)
 	})
 	return value
+}
+
+func NewGuildDiscordSession(guildId string, session *discordgo.Session, cacheTimeout time.Duration, clock Clock) *GuildDiscordSession {
+	return &GuildDiscordSession{
+		guildID:   guildId,
+		session:   session,
+		roleCache: NewInteractionCache[[]*discordgo.Role](cacheTimeout, clock),
+	}
 }
 
 type GuildDiscordSession struct {
