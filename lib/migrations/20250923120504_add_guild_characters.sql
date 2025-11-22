@@ -5,7 +5,6 @@ CREATE TABLE guild_characters (
     guild_id VARCHAR(75),
     character_id INTEGER,
     secondary_character_id INTEGER,
-    game_status INTEGER,
     effect_mask INTEGER,
     extra_data TEXT,
     PRIMARY KEY (id, guild_id),

@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TABLE guild_votes(
+CREATE TABLE werewolf_kill_votes(
     guild_id VARCHAR(75),
     user_id VARCHAR(75),
     voting_for_id VARCHAR(75),
@@ -12,5 +12,5 @@ CREATE TABLE guild_votes(
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE guild_votes;
+DROP TABLE werewolf_kill_votes;
 -- +goose StatementEnd

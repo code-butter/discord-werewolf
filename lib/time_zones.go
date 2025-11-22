@@ -14,7 +14,7 @@ func SystemTimeZoneName() (string, error) {
 		return "", err
 	}
 	parts := strings.Split(resolvePath, "/")
-	// TODO: some are three long. We need a better method.
+	// TODO: some are three parts long. We need a better method.
 	return strings.Join(parts[len(parts)-2:], "/"), nil
 }
 

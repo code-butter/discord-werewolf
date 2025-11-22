@@ -1,13 +1,31 @@
 package lib
 
-func IsAdmin(i Interaction) (bool, error) {
-	guild, err := i.Guild()
+func IsAdmin(ia *InteractionArgs) error {
+	guild, err := ia.Session.Guild()
 	if err != nil {
-		return false, err
+		return err
 	}
-	requester := i.Requester()
+	requester := ia.Interaction.Requester()
 	if requester.ID == guild.OwnerID {
-		return true, nil
+		return nil
 	}
-	return i.RequesterHasRole(RoleAdmin)
+	yes, err := ia.Interaction.RequesterHasRole(RoleAdmin)
+	if err != nil {
+		return err
+	}
+	if !yes {
+		return NewPermissionDeniedError("")
+	}
+	return nil
+}
+
+func IsAlive(ia *InteractionArgs) error {
+	yes, err := ia.Interaction.RequesterHasRole(RoleAlive)
+	if err != nil {
+		return err
+	}
+	if !yes {
+		return NewPermissionDeniedError("You're dead, bub.")
+	}
+	return nil
 }

@@ -1,14 +1,15 @@
 package models
 
 import (
-	"database/sql/driver"
-	"discord-werewolf/lib"
-	"encoding/json"
-	"time"
+	"iter"
+	"maps"
+	"slices"
+
+	"gorm.io/datatypes"
 )
 
 type Guild struct {
-	Id           string `gorm:"primary_key"`
+	Id           string `gorm:"primary_key"` // Discord guild ID
 	Name         string
 	Channels     GuildChannels
 	Paused       bool
@@ -17,24 +18,33 @@ type Guild struct {
 	TimeZone     string
 	DayTime      *TimeOnly
 	NightTime    *TimeOnly
-	LastCycleRan *time.Time `gorm:"type:datetime"`
-}
-type GuildChannel struct {
-	Id       string
-	Name     string
-	AppId    string
-	Children *[]GuildChannel
+	GameSettings datatypes.JSONMap
+	LastCycleRan string
 }
 
-type GuildChannels map[string]GuildChannel
-
-func (m GuildChannels) Value() (driver.Value, error) {
-	return json.Marshal(m)
+func findChannel(appId string, channels iter.Seq[GuildChannel]) *GuildChannel {
+	if channels == nil {
+		return nil
+	}
+	for c := range channels {
+		if c.AppId == appId {
+			return &c
+		}
+		if c.Children != nil {
+			return findChannel(appId, slices.Values(*c.Children))
+		}
+	}
+	return nil
 }
-func (m *GuildChannels) Scan(value interface{}) error {
-	return lib.UnMarshalBytes(m, value)
+
+func (m *Guild) ChannelByAppId(appId string) *GuildChannel {
+	return findChannel(appId, maps.Values(m.Channels))
 }
 
-func (m GuildChannels) GormDataType() string {
-	return "guild_channels"
+func (m *Guild) Set(settingName string, value interface{}) {
+	m.GameSettings[settingName] = value
+}
+
+func (m *Guild) Get(settingName string) interface{} {
+	return m.GameSettings[settingName]
 }
