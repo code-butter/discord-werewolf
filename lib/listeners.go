@@ -40,17 +40,17 @@ func (lt *ListenerTracker[T]) Trigger(s *SessionArgs, data T) error {
 }
 
 type GameStartData struct {
-	Guild      models.Guild
+	Guild      *models.Guild
 	Characters []models.GuildCharacter
 }
 type NightStartData struct {
-	Guild models.Guild
+	Guild *models.Guild
 }
 type DayStartData struct {
-	Guild models.Guild
+	Guild *models.Guild
 }
 type CharacterDeathData struct {
-	Guild  models.Guild
+	Guild  *models.Guild
 	Target models.GuildCharacter
 	Cause  string
 }

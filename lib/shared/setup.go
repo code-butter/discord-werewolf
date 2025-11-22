@@ -1,8 +1,11 @@
 package shared
 
+// TODO: the name of this module is ambiguous. Come up with a better name
+
 import (
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/models"
+
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
@@ -11,6 +14,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+type SetupFunction func(i *do.Injector) error
 
 var InitialChannels map[string]models.GuildChannel
 
@@ -60,11 +65,12 @@ func init() {
 	}
 }
 
-// Setup is shared between tests and the application
-func Setup() *do.Injector {
+// SetupInjector is shared between tests and the application
+func SetupInjector() *do.Injector {
 	injector := do.New()
 	do.ProvideValue[*lib.GameListeners](injector, lib.NewGameListeners())
 	do.Provide[*lib.GuildSettings](injector, lib.NewGameSettings)
+
 	return injector
 }
 
@@ -93,15 +99,12 @@ func InitGuild(ia *lib.InteractionArgs) error {
 	var guildRecord *models.Guild
 	if result := gormDB.Where("id = ?", guild.ID).First(&guildRecord); result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			guildRecord = nil
+			guildRecord = &models.Guild{
+				Name: guild.Name,
+				Id:   guild.ID,
+			}
 		} else {
 			return errors.Wrap(result.Error, "Could not get guild record")
-		}
-	}
-	if guildRecord == nil {
-		guildRecord = &models.Guild{
-			Name: guild.Name,
-			Id:   guild.ID,
 		}
 	}
 

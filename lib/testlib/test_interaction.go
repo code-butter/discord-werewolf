@@ -6,9 +6,9 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func NewTestInteraction(session lib.DiscordSession, options TestInteractionOptions) *TestInteraction {
+func NewTestInteraction(args lib.SessionArgs, options TestInteractionOptions) *TestInteraction {
 	return &TestInteraction{
-		session:     session,
+		session:     args.Session,
 		requester:   options.Requester,
 		commandData: options.CommandData,
 		channelId:   options.ChannelId,
@@ -17,14 +17,12 @@ func NewTestInteraction(session lib.DiscordSession, options TestInteractionOptio
 
 type TestInteractionOptions struct {
 	Requester   *discordgo.User
-	UserRoles   []*discordgo.Role
 	CommandData discordgo.ApplicationCommandInteractionData
 	ChannelId   string
 }
 
 type TestInteraction struct {
 	session     lib.DiscordSession
-	userRoles   []*discordgo.Role
 	requester   *discordgo.User
 	commandData discordgo.ApplicationCommandInteractionData
 	channelId   string
@@ -35,7 +33,6 @@ func (d *TestInteraction) ChannelId() string {
 }
 
 func (d *TestInteraction) GuildId() string {
-
 	guild, err := d.session.Guild()
 	if err != nil {
 		panic(err)
@@ -64,8 +61,12 @@ func (d *TestInteraction) Requester() *discordgo.User {
 }
 
 func (d *TestInteraction) RequesterHasRole(roleName string) (bool, error) {
-	for _, role := range d.userRoles {
-		if role.Name == roleName {
+	membersWithRole, err := d.session.GuildMembersWithRole(roleName)
+	if err != nil {
+		return false, err
+	}
+	for _, member := range membersWithRole {
+		if member.User.ID == d.requester.ID {
 			return true, nil
 		}
 	}

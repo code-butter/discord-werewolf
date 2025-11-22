@@ -27,12 +27,28 @@ func (args *SessionArgs) AppGuild() (*models.Guild, error) {
 		if err != nil {
 			return nil, err
 		}
-		result := db.Model((*models.Guild)(nil)).Where("id = ?", guild.ID).First(args.guild)
+		result := db.Model((*models.Guild)(nil)).Where("id = ?", guild.ID).First(&args.guild)
 		if result.Error != nil {
 			return nil, result.Error
 		}
 	}
 	return args.guild, nil
+}
+
+func (args *SessionArgs) GuildCharacters() ([]*models.GuildCharacter, error) {
+	gormDB := do.MustInvoke[*gorm.DB](args.Injector)
+	guild, err := args.Session.Guild()
+	if err != nil {
+		return nil, err
+	}
+	var characters []*models.GuildCharacter
+	result := gormDB.
+		Where("guild_id = ?", guild.ID).
+		Find(&characters)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return characters, nil
 }
 
 func (args *SessionArgs) GuildCharacter(id string) (*models.GuildCharacter, error) {
@@ -87,6 +103,7 @@ type DiscordSession interface {
 
 	// RemoveRole removes role from user
 	RemoveRole(userId string, roleName string) error
+	GuildMember(id string) (*discordgo.Member, error)
 	GuildMembers() ([]*discordgo.Member, error)
 	GuildMembersWithRole(roleName string) ([]*discordgo.Member, error)
 
@@ -135,6 +152,10 @@ type GuildDiscordSession struct {
 	session   *discordgo.Session
 	guildID   string
 	roleCache *InteractionCache[[]*discordgo.Role]
+}
+
+func (l *GuildDiscordSession) GuildMember(userId string) (*discordgo.Member, error) {
+	return l.session.GuildMember(l.guildID, userId)
 }
 
 func (l *GuildDiscordSession) DeleteChannelOverridePermissions(channelId string, id string) error {

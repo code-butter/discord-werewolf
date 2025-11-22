@@ -4,6 +4,7 @@ import (
 	"context"
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/models"
+	"discord-werewolf/lib/shared"
 	"fmt"
 	"log"
 	"time"
@@ -13,53 +14,6 @@ import (
 	"github.com/samber/do"
 	"gorm.io/gorm"
 )
-
-func startDay(guildId string, s lib.SessionArgs) error {
-	var err error
-	var result *gorm.DB
-	var guild models.Guild
-	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
-	l := do.MustInvoke[*lib.GameListeners](s.Injector)
-	if result = gormDB.Where("id = ?", guildId).First(&guild); result.Error != nil {
-		return errors.Wrap(result.Error, "Guild not found")
-	}
-	err = l.DayStart.Trigger(&s, lib.DayStartData{
-		Guild: guild,
-	})
-	if err != nil {
-		return errors.Wrap(err, "Failed to start day from triggers")
-	}
-	guild.DayNight = true
-	if result = gormDB.Save(&guild); result.Error != nil {
-		return errors.Wrap(result.Error, "Could not save guild")
-	}
-
-	return nil
-}
-
-func startNight(guildId string, s lib.SessionArgs) error {
-	var err error
-	var result *gorm.DB
-	var guild models.Guild
-
-	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
-	l := do.MustInvoke[*lib.GameListeners](s.Injector)
-
-	if result = gormDB.Where("id = ?", guildId).First(&guild); result.Error != nil {
-		return errors.Wrap(result.Error, "Guild not found")
-	}
-	err = l.NightStart.Trigger(&s, lib.NightStartData{
-		Guild: guild,
-	})
-	if err != nil {
-		return errors.Wrap(err, "Failed to start night from triggers")
-	}
-	guild.DayNight = false
-	if result = gormDB.Save(&guild); result.Error != nil {
-		return errors.Wrap(result.Error, "Could not save guild")
-	}
-	return nil
-}
 
 func TimedDayNight(i *do.Injector, loopSleep time.Duration) {
 	var err error
@@ -114,12 +68,12 @@ func TimedDayNight(i *do.Injector, loopSleep time.Duration) {
 			// If it's been longer than a day
 			if lastCycleRan.Before(cutoff) {
 				if guild.DayNight {
-					if err = startNight(guild.Id, sa); err != nil {
+					if err = shared.StartNight(sa); err != nil {
 						log.Println(err)
 						continue
 					}
 				} else {
-					if err = startDay(guild.Id, sa); err != nil {
+					if err = shared.StartDay(sa); err != nil {
 						log.Println(err)
 						continue
 					}
@@ -141,7 +95,7 @@ func TimedDayNight(i *do.Injector, loopSleep time.Duration) {
 
 			if guild.DayNight {
 				if lastCycleRan.Before(nightTime) && guildNow.After(nightTime) {
-					if err = startNight(guild.Id, sa); err != nil {
+					if err = shared.StartNight(sa); err != nil {
 						log.Println(err)
 						continue
 					}
@@ -149,7 +103,7 @@ func TimedDayNight(i *do.Injector, loopSleep time.Duration) {
 				}
 			} else {
 				if lastCycleRan.Before(dayTime) && guildNow.After(dayTime) {
-					if err = startDay(guild.Id, sa); err != nil {
+					if err = shared.StartDay(sa); err != nil {
 						log.Println(err)
 						continue
 					}
@@ -172,7 +126,7 @@ func triggerNight(args *lib.InteractionArgs) error {
 	if err != nil {
 		return err
 	}
-	if err = startNight(args.Interaction.GuildId(), args.SessionArgs); err != nil {
+	if err = shared.StartNight(args.SessionArgs); err != nil {
 		return err
 	}
 	return args.Interaction.FollowupMessage("Night triggered!", true)
@@ -183,7 +137,7 @@ func triggerDay(args *lib.InteractionArgs) error {
 	if err != nil {
 		return err
 	}
-	if err = startDay(args.Interaction.GuildId(), args.SessionArgs); err != nil {
+	if err = shared.StartDay(args.SessionArgs); err != nil {
 		return err
 	}
 	return args.Interaction.FollowupMessage("Day triggered!", true)

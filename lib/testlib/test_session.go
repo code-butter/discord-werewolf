@@ -201,6 +201,15 @@ func (t *TestSession) RemoveRole(userId string, roleName string) error {
 	return nil
 }
 
+func (t *TestSession) GuildMember(id string) (*discordgo.Member, error) {
+	for _, member := range t.Members {
+		if member.User.ID == id {
+			return member, nil
+		}
+	}
+	return nil, errors.New("member not found")
+}
+
 func (t *TestSession) GuildMembers() ([]*discordgo.Member, error) {
 	return t.Members, nil
 }

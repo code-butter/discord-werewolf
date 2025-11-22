@@ -16,7 +16,9 @@ func TestSystemAutoStarts(t *testing.T) {
 	clock := testlib.NewMockClock(time.Now().Add(-24 * time.Hour))
 	clock.SetTime(19, 0, 0) // starts in the frozen state
 
-	args := testlib.StartTestGame(10, 5, clock)
+	args := testlib.StartTestGame(10, 5, func(injector *do.Injector) {
+		do.ProvideValue[lib.Clock](injector, clock)
+	})
 	guild, err := args.Session.Guild()
 	if err != nil {
 		t.Fatal(err)

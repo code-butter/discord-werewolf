@@ -17,7 +17,13 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestInit(session lib.DiscordSession, clock *MockClock) lib.SessionArgs {
+type TestInitCallback func(injector *do.Injector)
+
+func TestInitDefault(session lib.DiscordSession) lib.SessionArgs {
+	return TestInit(session, func(*do.Injector) {})
+}
+
+func TestInit(session lib.DiscordSession, callback TestInitCallback) lib.SessionArgs {
 	var err error
 
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -39,11 +45,16 @@ func TestInit(session lib.DiscordSession, clock *MockClock) lib.SessionArgs {
 	guild, _ := session.Guild()
 	sessionProvider := NewTestDiscordSessionProvider(map[string]lib.DiscordSession{guild.ID: session})
 
-	injector := shared.Setup()
+	injector := shared.SetupInjector()
 	do.ProvideValue[*gorm.DB](injector, gormDB)
 	do.ProvideValue[context.Context](injector, context.Background())
-	do.ProvideValue[lib.Clock](injector, clock)
 	do.ProvideValue[lib.DiscordSessionProvider](injector, sessionProvider)
+
+	callback(injector)
+
+	if _, err := do.Invoke[lib.Clock](injector); err != nil {
+		do.ProvideValue[lib.Clock](injector, NewMockClock(time.Now()))
+	}
 
 	return lib.SessionArgs{
 		Session:  session,
@@ -54,11 +65,11 @@ func TestInit(session lib.DiscordSession, clock *MockClock) lib.SessionArgs {
 func InteractionInit(args lib.SessionArgs, options TestInteractionOptions) lib.InteractionArgs {
 	return lib.InteractionArgs{
 		SessionArgs: args,
-		Interaction: NewTestInteraction(args.Session, options),
+		Interaction: NewTestInteraction(args, options),
 	}
 }
 
-func GenericServerInit(memberCount int, clock *MockClock) lib.SessionArgs {
+func GenericServerInit(memberCount int, callback TestInitCallback) lib.SessionArgs {
 	owner := &discordgo.User{
 		ID: "owner",
 	}
@@ -76,7 +87,7 @@ func GenericServerInit(memberCount int, clock *MockClock) lib.SessionArgs {
 		GuildRoles: roles,
 		Owner:      owner,
 	})
-	sessionArgs := TestInit(session, clock)
+	sessionArgs := TestInit(session, callback)
 	var members []*discordgo.Member
 	for i := 0; i < memberCount; i++ {
 		members = append(members, TestDiscordMember(session.GuildId))
@@ -96,8 +107,8 @@ func GenericServerInit(memberCount int, clock *MockClock) lib.SessionArgs {
 	return sessionArgs
 }
 
-func StartTestGame(memberCount int, playingCount int, clock *MockClock) lib.SessionArgs {
-	args := GenericServerInit(memberCount, clock)
+func StartTestGame(memberCount int, playingCount int, callback TestInitCallback) lib.SessionArgs {
+	args := GenericServerInit(memberCount, callback)
 	members, _ := args.Session.GuildMembers()
 	guild, _ := args.Session.Guild()
 	var owner *discordgo.User

@@ -4,8 +4,6 @@ import (
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/models"
 	"discord-werewolf/lib/testlib"
-	"time"
-
 	"math/rand"
 	"testing"
 
@@ -17,8 +15,9 @@ func TestStartGame(t *testing.T) {
 	var result *gorm.DB
 	memberCount := rand.Intn(15) + 10
 	playingCount := rand.Intn(5) + 5
-	clock := testlib.NewMockClock(time.Now())
-	args := testlib.StartTestGame(memberCount, playingCount, clock)
+	args := testlib.StartTestGame(memberCount, playingCount, func(injector *do.Injector) {
+		// Do nothing
+	})
 	guild, _ := args.Session.Guild()
 	gormDb := do.MustInvoke[*gorm.DB](args.Injector)
 	membersAlive, _ := args.Session.GuildMembersWithRole(lib.RoleAlive)

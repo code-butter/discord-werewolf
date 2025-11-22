@@ -5,9 +5,8 @@ import (
 	"database/sql"
 	"discord-werewolf/game_management"
 	"discord-werewolf/lib"
+	"discord-werewolf/lib/setup"
 	"discord-werewolf/lib/shared"
-	"discord-werewolf/werewolves"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -34,7 +33,7 @@ func main() {
 		lib.Fatal("CLIENT_ID environment variable not set")
 	}
 
-	injector := shared.Setup()
+	injector := shared.SetupInjector()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -82,58 +81,22 @@ func main() {
 	sessionProvider := lib.NewDiscordSessionProvider(sessionGetter)
 	do.ProvideValue[lib.DiscordSessionProvider](injector, sessionProvider)
 
-	// Setup sections. Keep in mind that order is important here. Callbacks will be run in the order they
-	// are set up in these functions.
-	if err = game_management.Setup(injector); err != nil {
-		lib.Fatal(err)
-	}
-	if err = werewolves.Setup(injector); err != nil {
-		lib.Fatal(err)
-	}
+	setup.SetupModules(injector)
 
 	// Discord handlers
 	commands := lib.GetGlobalCommands()
 	discordClient.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		var err error
 		if i.Type == discordgo.InteractionApplicationCommand {
 			session := sessionProvider.GetSession(i.GuildID)
-			commandName := i.ApplicationCommandData().Name
 			interaction := lib.NewLiveInteraction(i, session)
-			if cmd, ok := commands[commandName]; ok {
-				interactionArgs := &lib.InteractionArgs{
-					SessionArgs: lib.SessionArgs{
-						Session:  session,
-						Injector: injector,
-					},
-					Interaction: interaction,
-				}
-				if len(cmd.Authorizers) > 0 {
-					for _, auth := range cmd.Authorizers {
-						err := auth(interactionArgs)
-						if err != nil {
-							if errors.Is(err, lib.PermissionDeniedError{}) {
-								if err = interactionArgs.Interaction.Respond(err.Error(), true); err != nil {
-									log.Println(err)
-								}
-							} else {
-								errorRespond(interaction, fmt.Sprintf("Could not authorize command: %s", err.Error()))
-							}
-							return
-						}
-					}
-				}
-				if cmd.Respond == nil {
-					errorRespond(interaction, fmt.Sprintf("Command has no Respond method: %s\n", commandName))
-					return
-				}
-				if err = cmd.Respond(interactionArgs); err != nil {
-					errorRespond(interaction, err.Error())
-					return
-				}
-			} else {
-				errorRespond(interaction, fmt.Sprintf("Unknown command: %s", commandName))
-				return
+			args := &lib.InteractionArgs{
+				SessionArgs: lib.SessionArgs{
+					Session:  session,
+					Injector: injector,
+				},
+				Interaction: interaction,
 			}
+			shared.HandleInteraction(commands, args)
 		}
 	})
 	if err = discordClient.Open(); err != nil {
@@ -167,9 +130,4 @@ func main() {
 	<-ctx.Done()
 	log.Println("Shutting down...")
 	time.Sleep(5 * time.Second)
-}
-
-func errorRespond(i lib.Interaction, message string) {
-	log.Println(message)
-	_ = i.Respond("There was a system error.", true)
 }

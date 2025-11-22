@@ -12,6 +12,7 @@ import (
 
 func StartGame(ia *lib.InteractionArgs) error {
 	var err error
+	var result *gorm.DB
 	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
 	listeners := do.MustInvoke[*lib.GameListeners](ia.Injector)
 	settings := do.MustInvoke[*lib.GuildSettings](ia.Injector)
@@ -25,11 +26,11 @@ func StartGame(ia *lib.InteractionArgs) error {
 		}
 	}()
 
-	var guild *models.Guild
-	var result *gorm.DB
-	if result = gormDB.Where("id = ?", ia.Interaction.GuildId()).First(&guild); result.Error != nil {
-		return result.Error
+	guild, err := ia.AppGuild()
+	if err != nil {
+		return err
 	}
+
 	if result = gormDB.Where("guild_id = ?", ia.Interaction.GuildId()).Delete(&models.GuildCharacter{}); result.Error != nil {
 		return result.Error
 	}
@@ -77,7 +78,7 @@ func StartGame(ia *lib.InteractionArgs) error {
 		characters = append(characters, character)
 	}
 
-	if result = gormDB.Save(&characters); result.Error != nil {
+	if result = gormDB.Save(characters); result.Error != nil {
 		return result.Error
 	}
 
@@ -98,7 +99,7 @@ func StartGame(ia *lib.InteractionArgs) error {
 	}
 
 	err = listeners.GameStart.Trigger(&ia.SessionArgs, lib.GameStartData{
-		Guild:      *guild,
+		Guild:      guild,
 		Characters: characters,
 	})
 	if err != nil {
@@ -118,6 +119,54 @@ func StartGame(ia *lib.InteractionArgs) error {
 	err = ia.Interaction.FollowupMessage("Game started", true)
 	if err != nil {
 		return errors.Wrap(err, "could not follow up message")
+	}
+	return nil
+}
+
+func StartDay(s lib.SessionArgs) error {
+	var err error
+
+	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
+	l := do.MustInvoke[*lib.GameListeners](s.Injector)
+
+	guild, err := s.AppGuild()
+	if err != nil {
+		return err
+	}
+
+	err = l.DayStart.Trigger(&s, lib.DayStartData{
+		Guild: guild,
+	})
+	if err != nil {
+		return errors.Wrap(err, "Failed to start day from triggers")
+	}
+	guild.DayNight = true
+	if result := gormDB.Save(&guild); result.Error != nil {
+		return errors.Wrap(result.Error, "Could not save guild")
+	}
+
+	return nil
+}
+
+func StartNight(s lib.SessionArgs) error {
+	var err error
+
+	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
+	l := do.MustInvoke[*lib.GameListeners](s.Injector)
+
+	guild, err := s.AppGuild()
+	if err != nil {
+		return err
+	}
+	err = l.NightStart.Trigger(&s, lib.NightStartData{
+		Guild: guild,
+	})
+	if err != nil {
+		return errors.Wrap(err, "Failed to start night from triggers")
+	}
+	guild.DayNight = false
+	if result := gormDB.Save(&guild); result.Error != nil {
+		return errors.Wrap(result.Error, "Could not save guild")
 	}
 	return nil
 }

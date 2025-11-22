@@ -10,7 +10,6 @@ import (
 	"maps"
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
@@ -30,8 +29,8 @@ func TestServerInit(t *testing.T) {
 	session := testlib.NewGuildTestSession(guildId, guildName, testlib.TestSessionOptions{
 		Owner: owner,
 	})
-	clock := testlib.NewMockClock(time.Now())
-	sessionArgs := testlib.TestInit(session, clock)
+
+	sessionArgs := testlib.TestInitDefault(session)
 	args := testlib.InteractionInit(sessionArgs, testlib.TestInteractionOptions{
 		Requester: owner,
 	})
