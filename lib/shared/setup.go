@@ -70,7 +70,7 @@ func SetupInjector() *do.Injector {
 	injector := do.New()
 	do.ProvideValue[*lib.GameListeners](injector, lib.NewGameListeners())
 	do.Provide[*lib.GuildSettings](injector, lib.NewGameSettings)
-
+	do.ProvideValue[*lib.CommandRegistrar](injector, lib.NewCommandRegistrar())
 	return injector
 }
 

@@ -22,7 +22,7 @@ const CharacterChaosDemon = 11
 const CharacterVampireKing = 12
 
 type GuildCharacter struct {
-	Id                   string `gorm:"primaryKey"`
+	Id                   string `gorm:"primaryKey"` // The discord user ID
 	GuildId              string `gorm:"primaryKey"`
 	CharacterId          int
 	SecondaryCharacterId int

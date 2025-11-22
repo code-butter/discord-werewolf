@@ -83,10 +83,11 @@ func main() {
 
 	setup.SetupModules(injector)
 
-	// Discord handlers
-	commands := lib.GetGlobalCommands()
+	commandRegistrar := do.MustInvoke[*lib.CommandRegistrar](injector)
+
 	discordClient.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if i.Type == discordgo.InteractionApplicationCommand {
+			commands := commandRegistrar.GetAllCommands(i.GuildID)
 			session := sessionProvider.GetSession(i.GuildID)
 			interaction := lib.NewLiveInteraction(i, session)
 			args := &lib.InteractionArgs{
@@ -106,7 +107,7 @@ func main() {
 
 	// TODO: move this to an "upgrade" subcommand
 	globalCommands := make([]*discordgo.ApplicationCommand, 0)
-	for _, cmd := range commands {
+	for _, cmd := range commandRegistrar.GetGlobalCommands() {
 		globalCommands = append(globalCommands, cmd.ApplicationCommand)
 	}
 	if len(globalCommands) > 0 {

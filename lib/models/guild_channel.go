@@ -14,6 +14,8 @@ const ChannelMasons = "masons"
 const ChannelBodyguard = "bodyguard"
 const ChannelAfterLife = "after-life"
 
+// Parent channels
+
 const CatChannelTheTown = "the-town"
 const CatChannelInstructions = "game-instructions"
 const CatChannelAdmin = "admin"
@@ -24,7 +26,7 @@ const ChannelSeerPrefix = "seer-"
 const ChannelLoversPrefix = "lovers-"
 
 type GuildChannel struct {
-	Id       string
+	Id       string // Discord ID
 	Name     string
 	AppId    string
 	Children *[]GuildChannel

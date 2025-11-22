@@ -6,9 +6,9 @@ import (
 	"discord-werewolf/lib/models"
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/samber/do"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 func canVote(ia *lib.InteractionArgs) error {
@@ -16,15 +16,24 @@ func canVote(ia *lib.InteractionArgs) error {
 	if err != nil {
 		return err
 	}
-	wolfChannel := guild.ChannelByAppId(models.ChannelTownSquare)
-	if wolfChannel.Id != ia.Interaction.ChannelId() {
+	if !guild.DayNight {
+		return lib.NewPermissionDeniedError("It's night time. You can vote tomorrow.")
+	}
+	alive, err := ia.Interaction.RequesterHasRole(lib.RoleAlive)
+	if err != nil {
+		return err
+	}
+	if !alive {
+		return lib.NewPermissionDeniedError("The dead cannot vote.")
+	}
+	townSquareChannel := guild.ChannelByAppId(models.ChannelTownSquare)
+	if townSquareChannel.Id != ia.Interaction.ChannelId() {
 		return lib.NewPermissionDeniedError("You are not in the town square. Vote there.")
 	}
 	return nil
 }
 
 func voteFor(ia *lib.InteractionArgs) error {
-	// TODO: check if vote should happen
 	guildId := ia.Interaction.GuildId()
 	userId := ia.Interaction.Requester().ID
 	voteForId := ia.Interaction.CommandData().GetOption("user").Value.(string)
@@ -43,18 +52,35 @@ func voteFor(ia *lib.InteractionArgs) error {
 		return ia.Interaction.Respond(msg, false)
 	}
 
-	vote := models.GuildVote{
-		GuildId:     ia.Interaction.GuildId(),
-		UserId:      ia.Interaction.Requester().ID,
-		VotingForId: voteForId,
+	// TODO: introduce logic for double voting
+
+	gvdb := gorm.G[models.GuildVote](gormDB)
+	_, err := gvdb.
+		Where("guild_id = ? AND user_id = ?", guildId, userId).
+		First(ctx)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			vote := models.GuildVote{
+				GuildId:     guildId,
+				UserId:      userId,
+				VotingForId: voteForId,
+			}
+			return gvdb.Create(ctx, &vote)
+		} else {
+			return err
+		}
+	} else {
+		rows, err := gvdb.
+			Where("guild_id = ? AND user_id = ?", guildId, userId).
+			Update(ctx, "voting_for_id", voteForId)
+		if rows != 1 {
+			return errors.New("Invalid number of votes cast")
+		}
+		if err != nil {
+			return err
+		}
 	}
-	result := gormDB.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "guild_id"}, {Name: "user_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"voting_for_id"}),
-	}).Create(&vote)
-	if result.Error != nil {
-		return result.Error
-	}
+
 	msg := fmt.Sprintf("<@%s> has voted for <@%s>", userId, voteForId)
 	return ia.Interaction.Respond(msg, false)
 }

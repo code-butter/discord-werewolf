@@ -9,12 +9,13 @@ import (
 	"github.com/samber/do"
 )
 
-var commands map[string]lib.Command
-
 func CallInteraction(args lib.SessionArgs, options testlib.TestInteractionOptions) {
-	if commands == nil {
-		commands = lib.GetGlobalCommands()
+	commandRegistrar := do.MustInvoke[*lib.CommandRegistrar](args.Injector)
+	guild, err := args.AppGuild()
+	if err != nil {
+		panic(err)
 	}
+	commands := commandRegistrar.GetAllCommands(guild.Id)
 	interaction := testlib.NewTestInteraction(args, options)
 	interactionArgs := &lib.InteractionArgs{
 		SessionArgs: args,

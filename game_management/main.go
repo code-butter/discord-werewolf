@@ -11,20 +11,21 @@ import (
 )
 
 func Setup(injector *do.Injector) error {
-
+	cr := do.MustInvoke[*lib.CommandRegistrar](injector)
 	l := do.MustInvoke[*lib.GameListeners](injector)
+
 	l.NightStart.Add(nightListener)
 
-	lib.RegisterGlobalCommand(lib.Command{
+	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
-			Name:        "init",
+			Name:        lib.ActionInit,
 			Description: "Initializes the server. Wipes out any data previously stored.",
 		},
 		Respond:     shared.InitGuild,
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
-	lib.RegisterGlobalCommand(lib.Command{
+	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "ping",
 			Description: "Pings the server. Responds with 'pong'.",
@@ -52,7 +53,7 @@ func Setup(injector *do.Injector) error {
 		})
 	}
 
-	lib.RegisterGlobalCommand(lib.Command{
+	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "get_timezones",
 			Description: "Get timezones for the server.",
@@ -71,7 +72,7 @@ func Setup(injector *do.Injector) error {
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
-	lib.RegisterGlobalCommand(lib.Command{
+	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "set_timezone",
 			Description: "Sets the timezone for the server.",
@@ -89,26 +90,26 @@ func Setup(injector *do.Injector) error {
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
-	lib.RegisterGlobalCommand(lib.Command{
+	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
-			Name:        "playing",
+			Name:        lib.ActionPlaying,
 			Description: "Signs you up for the next round.",
 		},
 		Respond: playing,
 	})
 
-	lib.RegisterGlobalCommand(lib.Command{
+	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
-			Name:        "stop_playing",
+			Name:        lib.ActionStopPlaying,
 			Description: "Removes you from playing next round.",
 		},
 
 		Respond: stopPlaying,
 	})
 
-	lib.RegisterGlobalCommand(lib.Command{
+	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
-			Name:        "start_game",
+			Name:        lib.ActionStartGame,
 			Description: "Starts the game.",
 		},
 
@@ -116,7 +117,7 @@ func Setup(injector *do.Injector) error {
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
-	lib.RegisterGlobalCommand(lib.Command{
+	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "day_time",
 			Description: "Triggers day for the current game",
@@ -126,9 +127,9 @@ func Setup(injector *do.Injector) error {
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
-	lib.RegisterGlobalCommand(lib.Command{
+	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
-			Name:        "night_time",
+			Name:        lib.ActionNightTime,
 			Description: "Triggers night for the current game",
 		},
 
@@ -136,14 +137,14 @@ func Setup(injector *do.Injector) error {
 		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
 	})
 
-	lib.RegisterGlobalCommand(lib.Command{
+	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
-			Name:        "vote",
+			Name:        lib.ActionVote,
 			Description: "Vote to hang. Leave off the target if you wish to unvote.",
 			Options: []*discordgo.ApplicationCommandOption{
 				{
 					Type:        discordgo.ApplicationCommandOptionUser,
-					Name:        "user",
+					Name:        lib.ActionOptionVoteUser,
 					Description: "Select a player",
 					Required:    false,
 				},

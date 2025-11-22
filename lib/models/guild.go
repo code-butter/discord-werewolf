@@ -9,7 +9,7 @@ import (
 )
 
 type Guild struct {
-	Id           string `gorm:"primary_key"`
+	Id           string `gorm:"primary_key"` // Discord guild ID
 	Name         string
 	Channels     GuildChannels
 	Paused       bool

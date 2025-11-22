@@ -15,8 +15,9 @@ import (
 
 func Setup(injector *do.Injector) error {
 	l := do.MustInvoke[*lib.GameListeners](injector)
+	cr := do.MustInvoke[*lib.CommandRegistrar](injector)
 
-	lib.RegisterGlobalCommand(lib.Command{
+	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "kill",
 			Description: "Vote for a user to kill over night",

@@ -14,11 +14,6 @@ import (
 func TestWerewolfKill(t *testing.T) {
 	s := StartDefaultIntegratedTestGame(15, 15)
 
-	guild, err := s.AppGuild()
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	characters, err := s.GuildCharacters()
 	if err != nil {
 		t.Fatalf("Error getting guild's characters: %v", err)
@@ -43,9 +38,9 @@ func TestWerewolfKill(t *testing.T) {
 
 	for i, wolf := range wolves {
 		if i%3 == 0 {
-			err = testVoteToKill(guild, s, wolf.Id, toNotDie.Id)
+			err = testVoteToKill(s, wolf.Id, toNotDie.Id)
 		} else {
-			err = testVoteToKill(guild, s, wolf.Id, toDie.Id)
+			err = testVoteToKill(s, wolf.Id, toDie.Id)
 		}
 		if err != nil {
 			t.Fatal(err)
@@ -86,7 +81,11 @@ func TestWerewolfKill(t *testing.T) {
 	}
 }
 
-func testVoteToKill(guild *models.Guild, s lib.SessionArgs, wolfId, characterId string) error {
+func testVoteToKill(s lib.SessionArgs, wolfId, characterId string) error {
+	guild, err := s.AppGuild()
+	if err != nil {
+		return err
+	}
 	member, err := s.Session.GuildMember(wolfId)
 	if err != nil {
 		return err

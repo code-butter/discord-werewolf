@@ -11,7 +11,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// TODO: implement retry-after logic for API limits and service outages
 // TODO: add context listener for application shutdown
 
 type SessionArgs struct {
