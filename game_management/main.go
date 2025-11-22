@@ -152,7 +152,7 @@ func Setup(injector *do.Injector) error {
 		},
 
 		Respond:     voteFor,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAlive, canVote},
+		Authorizers: []lib.CommandAuthorizer{lib.IsAlive, canVote, lib.IsDayTime},
 	})
 
 	return nil

@@ -31,7 +31,7 @@ func Setup(injector *do.Injector) error {
 			}},
 
 		Respond:     voteKill,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAlive, canKill},
+		Authorizers: []lib.CommandAuthorizer{lib.IsAlive, canKill, lib.IsNightTime},
 	})
 
 	l.GameStart.Add(startGameListener)
@@ -54,7 +54,7 @@ func canKill(ia *lib.InteractionArgs) error {
 	}
 	wolfChannel := guild.ChannelByAppId(models.ChannelWerewolves)
 	if wolfChannel.Id != ia.Interaction.ChannelId() {
-		return lib.NewPermissionDeniedError("You are not in the wolves' channel.")
+		return lib.NewPermissionDeniedError("You are not in the werewolves' channel.")
 	}
 	return nil
 }

@@ -19,13 +19,6 @@ func canVote(ia *lib.InteractionArgs) error {
 	if !guild.DayNight {
 		return lib.NewPermissionDeniedError("It's night time. You can vote tomorrow.")
 	}
-	alive, err := ia.Interaction.RequesterHasRole(lib.RoleAlive)
-	if err != nil {
-		return err
-	}
-	if !alive {
-		return lib.NewPermissionDeniedError("The dead cannot vote.")
-	}
 	townSquareChannel := guild.ChannelByAppId(models.ChannelTownSquare)
 	if townSquareChannel.Id != ia.Interaction.ChannelId() {
 		return lib.NewPermissionDeniedError("You are not in the town square. Vote there.")

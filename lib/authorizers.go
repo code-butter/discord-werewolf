@@ -29,3 +29,25 @@ func IsAlive(ia *InteractionArgs) error {
 	}
 	return nil
 }
+
+func IsDayTime(ia *InteractionArgs) error {
+	guild, err := ia.AppGuild()
+	if err != nil {
+		return err
+	}
+	if !guild.DayNight {
+		return NewPermissionDeniedError("It's night time. You can do this tomorrow.")
+	}
+	return nil
+}
+
+func IsNightTime(ia *InteractionArgs) error {
+	guild, err := ia.AppGuild()
+	if err != nil {
+		return err
+	}
+	if guild.DayNight {
+		return NewPermissionDeniedError("It's day time. You can do this tonight.")
+	}
+	return nil
+}
