@@ -1,3 +1,4 @@
 .envrc
 *.db
-.github/events
+/.github/events
+/bin

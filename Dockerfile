@@ -3,7 +3,7 @@ FROM debian:stable-slim
 ARG TARGETARCH
 ENV ARCH=${TARGETARCH}
 
-COPY bin/discord-werewolf-linux-${ARCH} /usr/local/bin/discord-werewolf
+COPY bin/linux-${ARCH}/discord-werewolf-linux-${ARCH} /usr/local/bin/discord-werewolf
 
 RUN useradd app && \
     mkdir /data && \
