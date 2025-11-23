@@ -41,6 +41,7 @@ func (cr *CommandRegistrar) RegisterGuild(guildId string, c Command) {
 	guildSet[c.Name] = c
 }
 
+// TODO: cache the results here so we're not looping in hot paths
 func (cr *CommandRegistrar) GetAllCommands(guildId string) map[string]Command {
 	allCommands := cr.global
 	guildSet := cr.getGuildSet(guildId)
