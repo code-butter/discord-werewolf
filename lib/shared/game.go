@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"context"
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/models"
 	"math/rand"
@@ -16,10 +17,12 @@ func StartGame(ia *lib.InteractionArgs) error {
 	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
 	listeners := do.MustInvoke[*lib.GameListeners](ia.Injector)
 	settings := do.MustInvoke[*lib.GuildSettings](ia.Injector)
+	ctx := do.MustInvoke[context.Context](ia.Injector)
 
 	if err = ia.Interaction.DeferredResponse("Starting game...", true); err != nil {
 		return err
 	}
+
 	defer func() {
 		if err != nil {
 			_ = ia.Interaction.FollowupMessage("Server error starting game.", true)
@@ -30,10 +33,22 @@ func StartGame(ia *lib.InteractionArgs) error {
 	if err != nil {
 		return err
 	}
+	if guild.GameGoing {
+		return ia.Interaction.FollowupMessage("Game already started.", true)
+	}
+
+	_, err = gorm.G[models.Guild](gormDB).
+		Where("id = ?", guild.Id).
+		Update(ctx, "game_going", 1)
+
+	if err != nil {
+		return err
+	}
 
 	if result = gormDB.Where("guild_id = ?", ia.Interaction.GuildId()).Delete(&models.GuildCharacter{}); result.Error != nil {
 		return result.Error
 	}
+
 	if result = gormDB.Where("guild_id = ?", ia.Interaction.GuildId()).Delete(&models.GuildVote{}); result.Error != nil {
 		return result.Error
 	}
@@ -121,6 +136,47 @@ func StartGame(ia *lib.InteractionArgs) error {
 		return errors.Wrap(err, "could not follow up message")
 	}
 	return nil
+}
+
+func removeAllFromRole(s lib.DiscordSession, role string) error {
+	members, err := s.GuildMembersWithRole(role)
+	if err != nil {
+		return err
+	}
+	for _, member := range members {
+		if err := s.RemoveRole(member.User.ID, role); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func EndGame(ia *lib.InteractionArgs) error {
+	var err error
+	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
+	ctx := do.MustInvoke[context.Context](ia.Injector)
+
+	if err = ia.Interaction.DeferredResponse("Ending game...", true); err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = ia.Interaction.FollowupMessage("Server error ending game.", true)
+		}
+	}()
+	if err = removeAllFromRole(ia.Session, lib.RoleAlive); err != nil {
+		return err
+	}
+	if err = removeAllFromRole(ia.Session, lib.RoleDead); err != nil {
+		return err
+	}
+	_, err = gorm.G[models.Guild](gormDB).
+		Where("id = ?", ia.Interaction.GuildId()).
+		Update(ctx, "game_going", 0)
+	if err != nil {
+		return err
+	}
+	return ia.Interaction.FollowupMessage("Game ended", true)
 }
 
 func StartDay(s lib.SessionArgs) error {

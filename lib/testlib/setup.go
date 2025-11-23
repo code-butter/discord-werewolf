@@ -107,6 +107,10 @@ func GenericServerInit(memberCount int, callback TestInitCallback) lib.SessionAr
 	return sessionArgs
 }
 
+func StartTestGameDefault(memberCount int, playingCount int) lib.SessionArgs {
+	return StartTestGame(memberCount, playingCount, func(injector *do.Injector) {})
+}
+
 func StartTestGame(memberCount int, playingCount int, callback TestInitCallback) lib.SessionArgs {
 	args := GenericServerInit(memberCount, callback)
 	members, _ := args.Session.GuildMembers()

@@ -119,6 +119,15 @@ func Setup(injector *do.Injector) error {
 
 	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
+			Name:        lib.ActionEndGame,
+			Description: "Ends the game.",
+		},
+		Respond:     shared.EndGame,
+		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
+	})
+
+	cr.RegisterGlobal(lib.Command{
+		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "day_time",
 			Description: "Triggers day for the current game",
 		},
