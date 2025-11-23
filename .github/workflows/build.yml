@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        goarch: [ amd64, arm64 ]
         goos: [linux, windows, darwin]
-        goarch: [amd64, arm64]
     steps:
       - name: Checkout
         uses: actions/checkout/@v6
@@ -37,6 +37,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+      - name: Checkout
+        uses: actions/checkout/@v6
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -61,11 +64,18 @@ jobs:
           name: linux-arm64
           path: bin
 
+      - name: Set tag
+        run: |
+          tag="${GITHUB_REF_NAME//rel\//}"
+          echo "TAG=$tag" >> $GITHUB_ENV
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v3
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: codebutter/discord-werewolf:${{ github.ref_name }}
+          tags: |
+            docker.io/codebutter/discord-werewolf:${{ env.TAG }}
+            docker.io/codebutter/discord-werewolf:latest
           platforms: linux/amd64,linux/arm64
