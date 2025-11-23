@@ -3,6 +3,7 @@ package game_management
 import (
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/models"
+	"discord-werewolf/lib/shared"
 	"discord-werewolf/lib/testlib"
 	"math/rand"
 	"testing"
@@ -15,9 +16,7 @@ func TestStartGame(t *testing.T) {
 	var result *gorm.DB
 	memberCount := rand.Intn(15) + 10
 	playingCount := rand.Intn(5) + 5
-	args := testlib.StartTestGame(memberCount, playingCount, func(injector *do.Injector) {
-		// Do nothing
-	})
+	args := testlib.StartTestGameDefault(memberCount, playingCount)
 	guild, _ := args.Session.Guild()
 	gormDb := do.MustInvoke[*gorm.DB](args.Injector)
 	membersAlive, _ := args.Session.GuildMembersWithRole(lib.RoleAlive)
@@ -56,4 +55,31 @@ func TestStartGame(t *testing.T) {
 		t.Errorf("wolf count should be %d got %d", wolfCount, actualWolfCount)
 	}
 
+}
+
+func TestEndGame(t *testing.T) {
+	args := testlib.StartTestGameDefault(10, 10)
+
+	interaction := testlib.NewTestInteraction(args, testlib.TestInteractionOptions{})
+	interactionArgs := &lib.InteractionArgs{
+		SessionArgs: args,
+		Interaction: interaction,
+	}
+	if err := shared.EndGame(interactionArgs); err != nil {
+		t.Fatal(err)
+	}
+
+	guild, _ := args.AppGuild()
+	if guild.GameGoing {
+		t.Errorf("game did not stop")
+	}
+
+	membersAlive, _ := args.Session.GuildMembersWithRole(lib.RoleAlive)
+	if len(membersAlive) > 0 {
+		t.Errorf("alive count should be 0 got %d", len(membersAlive))
+	}
+	membersDead, _ := args.Session.GuildMembersWithRole(lib.RoleDead)
+	if len(membersDead) > 0 {
+		t.Errorf("dead count should be 0 got %d", len(membersDead))
+	}
 }
