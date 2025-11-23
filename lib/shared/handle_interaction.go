@@ -4,18 +4,28 @@ import (
 	"discord-werewolf/lib"
 	"fmt"
 	"log"
-
-	"github.com/pkg/errors"
+	"runtime/debug"
 )
 
 func HandleInteraction(commands map[string]lib.Command, args *lib.InteractionArgs) {
+	defer func() {
+		p := recover()
+		if p != nil {
+			if err, ok := p.(error); ok {
+				errorRespond(args.Interaction, err.Error())
+			} else if str, ok := p.(string); ok {
+				errorRespond(args.Interaction, str)
+			}
+			fmt.Println(debug.Stack())
+		}
+	}()
 	var err error
 	commandName := args.Interaction.CommandData().Name
 	if cmd, ok := commands[commandName]; ok {
 		for _, auth := range cmd.Authorizers {
 			err := auth(args)
 			if err != nil {
-				if errors.Is(err, lib.PermissionDeniedError{}) {
+				if _, ok := err.(lib.PermissionDeniedError); ok {
 					if err = args.Interaction.Respond(err.Error(), true); err != nil {
 						log.Println(err)
 					}

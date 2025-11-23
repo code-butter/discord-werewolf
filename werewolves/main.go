@@ -2,6 +2,7 @@ package werewolves
 
 import (
 	"discord-werewolf/lib"
+	"discord-werewolf/lib/authorizors"
 	"discord-werewolf/lib/models"
 	"fmt"
 	"strings"
@@ -19,19 +20,24 @@ func Setup(injector *do.Injector) error {
 
 	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
-			Name:        "kill",
+			Name:        lib.ActionKill,
 			Description: "Vote for a user to kill over night",
 			Options: []*discordgo.ApplicationCommandOption{
 				{
 					Type:        discordgo.ApplicationCommandOptionUser,
-					Name:        "user",
+					Name:        lib.ActionOptionKillUser,
 					Description: "Select a player",
 					Required:    false,
 				},
 			}},
 
-		Respond:     voteKill,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAlive, canKill, lib.IsNightTime},
+		Respond: voteKill,
+		Authorizers: []lib.CommandAuthorizer{
+			authorizors.CharacterExists(lib.ActionOptionKillUser),
+			authorizors.IsAlive,
+			canKill,
+			authorizors.IsNightTime,
+		},
 	})
 
 	l.GameStart.Add(startGameListener)

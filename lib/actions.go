@@ -9,3 +9,6 @@ const ActionNightTime = "night_time"
 
 const ActionVote = "vote"
 const ActionOptionVoteUser = "user"
+
+const ActionKill = "kill"
+const ActionOptionKillUser = "user"

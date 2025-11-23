@@ -2,6 +2,7 @@ package game_management
 
 import (
 	"discord-werewolf/lib"
+	"discord-werewolf/lib/authorizors"
 	"discord-werewolf/lib/shared"
 	"regexp"
 
@@ -22,7 +23,7 @@ func Setup(injector *do.Injector) error {
 			Description: "Initializes the server. Wipes out any data previously stored.",
 		},
 		Respond:     shared.InitGuild,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
+		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -69,7 +70,7 @@ func Setup(injector *do.Injector) error {
 		},
 
 		Respond:     getTimeZones,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
+		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -87,7 +88,7 @@ func Setup(injector *do.Injector) error {
 		},
 
 		Respond:     setTimeZone,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
+		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -114,7 +115,7 @@ func Setup(injector *do.Injector) error {
 		},
 
 		Respond:     shared.StartGame,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
+		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -123,7 +124,7 @@ func Setup(injector *do.Injector) error {
 			Description: "Ends the game.",
 		},
 		Respond:     shared.EndGame,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
+		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -133,7 +134,7 @@ func Setup(injector *do.Injector) error {
 		},
 
 		Respond:     triggerDay,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
+		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -143,7 +144,7 @@ func Setup(injector *do.Injector) error {
 		},
 
 		Respond:     triggerNight,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAdmin},
+		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -160,8 +161,13 @@ func Setup(injector *do.Injector) error {
 			},
 		},
 
-		Respond:     voteFor,
-		Authorizers: []lib.CommandAuthorizer{lib.IsAlive, canVote, lib.IsDayTime},
+		Respond: voteFor,
+		Authorizers: []lib.CommandAuthorizer{
+			authorizors.CharacterExists(lib.ActionOptionVoteUser),
+			authorizors.IsAlive,
+			canVote,
+			authorizors.IsDayTime,
+		},
 	})
 
 	return nil
