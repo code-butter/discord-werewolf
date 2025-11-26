@@ -2,6 +2,8 @@ package lib
 
 import (
 	"discord-werewolf/lib/models"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 func NewGameListeners() *GameListeners {
@@ -10,6 +12,7 @@ func NewGameListeners() *GameListeners {
 		NightStart:     &ListenerTracker[NightStartData]{},
 		DayStart:       &ListenerTracker[DayStartData]{},
 		CharacterDeath: &ListenerTracker[CharacterDeathData]{},
+		GameEnd:        &ListenerTracker[GameEndData]{},
 	}
 }
 
@@ -24,6 +27,7 @@ type GameListeners struct {
 	NightStart     *ListenerTracker[NightStartData]
 	DayStart       *ListenerTracker[DayStartData]
 	CharacterDeath *ListenerTracker[CharacterDeathData]
+	GameEnd        *ListenerTracker[GameEndData]
 }
 
 func (lt *ListenerTracker[T]) Add(lc ListenerCallback[T]) {
@@ -52,5 +56,16 @@ type DayStartData struct {
 type CharacterDeathData struct {
 	Guild  *models.Guild
 	Target models.GuildCharacter
-	Cause  string
+}
+
+type GameEndData struct {
+	Guild *models.Guild
+}
+
+type GameOver struct {
+	MessageEmbed discordgo.MessageEmbed
+}
+
+func (g GameOver) Error() string {
+	return "Game over, dude." // If you see this error anywhere, it's a bug. Return the embedded message to the server instead.
 }

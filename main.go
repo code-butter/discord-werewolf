@@ -109,7 +109,7 @@ func main() {
 			session := sessionProvider.GetSession(i.GuildID)
 			interaction := lib.NewLiveInteraction(i, session)
 			args := &lib.InteractionArgs{
-				SessionArgs: lib.SessionArgs{
+				SessionArgs: &lib.SessionArgs{
 					Session:  session,
 					Injector: injector,
 				},

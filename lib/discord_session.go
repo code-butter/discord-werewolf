@@ -50,6 +50,22 @@ func (args *SessionArgs) GuildCharacters() ([]*models.GuildCharacter, error) {
 	return characters, nil
 }
 
+func (args *SessionArgs) GuildCharactersById(ids []string) ([]*models.GuildCharacter, error) {
+	gormDB := do.MustInvoke[*gorm.DB](args.Injector)
+	guild, err := args.Session.Guild()
+	if err != nil {
+		return nil, err
+	}
+	var characters []*models.GuildCharacter
+	result := gormDB.
+		Where("guild_id = ? AND id in ?", guild.ID, ids).
+		Find(&characters)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return characters, nil
+}
+
 func (args *SessionArgs) GuildCharacter(id string) (*models.GuildCharacter, error) {
 	gormDB := do.MustInvoke[*gorm.DB](args.Injector)
 	guild, err := args.Session.Guild()

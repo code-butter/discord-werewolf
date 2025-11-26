@@ -64,6 +64,33 @@ func TestTownHanging(t *testing.T) {
 	}
 }
 
+func TestVillagerGameEnd(t *testing.T) {
+	s := StartDefaultIntegratedTestGame(5, 5)
+	characters, err := s.GuildCharacters()
+	if err != nil {
+		t.Fatalf("Error getting guild's characters: %v", err)
+	}
+	wolves, villagers := getWolvesVillagers(characters)
+	if err := shared.StartDay(s); err != nil {
+		t.Fatal(err)
+	}
+	for _, villager := range villagers {
+		if err = testVoteToHang(s, wolves[0].Id, villager.Id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = shared.StartNight(s); err != nil {
+		t.Fatal(err)
+	}
+	guild, err := s.AppGuild()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if guild.GameGoing {
+		t.Error("Game should be ended but is not")
+	}
+}
+
 func randomCharacter(selectedIds *[]string, characters []*models.GuildCharacter) *models.GuildCharacter {
 	if len(*selectedIds) >= len(characters) {
 		panic("Cannot get random character. Length of selected is bigger than available characters")
@@ -77,7 +104,7 @@ func randomCharacter(selectedIds *[]string, characters []*models.GuildCharacter)
 	return character
 }
 
-func testVoteToHang(s lib.SessionArgs, voterId, characterId string) error {
+func testVoteToHang(s *lib.SessionArgs, voterId, characterId string) error {
 	guild, err := s.AppGuild()
 	if err != nil {
 		return err

@@ -65,7 +65,7 @@ func TestEndGame(t *testing.T) {
 		SessionArgs: args,
 		Interaction: interaction,
 	}
-	if err := shared.EndGame(interactionArgs); err != nil {
+	if err := shared.EndGameInteraction(interactionArgs); err != nil {
 		t.Fatal(err)
 	}
 

@@ -16,6 +16,7 @@ func Setup(injector *do.Injector) error {
 	l := do.MustInvoke[*lib.GameListeners](injector)
 
 	l.NightStart.Add(nightListener)
+	l.CharacterDeath.Add(checkWinConditions)
 
 	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
@@ -123,7 +124,7 @@ func Setup(injector *do.Injector) error {
 			Name:        lib.ActionEndGame,
 			Description: "Ends the game.",
 		},
-		Respond:     shared.EndGame,
+		Respond:     shared.EndGameInteraction,
 		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
 	})
 

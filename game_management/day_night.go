@@ -40,7 +40,7 @@ func TimedDayNight(i *do.Injector, loopSleep time.Duration) {
 		}
 		var finishedGuildIds []string
 		for _, guild := range guilds {
-			sa := lib.SessionArgs{
+			sa := &lib.SessionArgs{
 				Session:  sessionProvider.GetSession(guild.Id),
 				Injector: i,
 			}
@@ -148,6 +148,7 @@ func nightListener(s *lib.SessionArgs, data lib.NightStartData) error {
 	var result *gorm.DB
 	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
 	ctx := do.MustInvoke[context.Context](s.Injector)
+
 	townChannel := data.Guild.ChannelByAppId(models.ChannelTownSquare)
 	if townChannel == nil {
 		return errors.New("No town channel found for guild " + data.Guild.Id)
@@ -176,16 +177,9 @@ func nightListener(s *lib.SessionArgs, data lib.NightStartData) error {
 			return errors.Wrap(err, "Could not send town channel message")
 		}
 	} else {
-		var character models.GuildCharacter
-		result = gormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).First(&character)
-		if result.Error != nil {
-			return errors.Wrap(result.Error, "Could not find character with ID "+voted)
-		}
-		if err = s.Session.RemoveRole(voted, "Alive"); err != nil {
-			return errors.Wrap(err, "Could not remove Alive role")
-		}
-		if err = s.Session.AssignRole(voted, "Dead"); err != nil {
-			return errors.Wrap(err, "Could not assign Dead role")
+		character, err := s.GuildCharacter(voted)
+		if err != nil {
+			return errors.Wrap(err, "Could not get character "+voted)
 		}
 		msg := &discordgo.MessageEmbed{
 			Type:  discordgo.EmbedTypeRich,
@@ -194,10 +188,7 @@ func nightListener(s *lib.SessionArgs, data lib.NightStartData) error {
 		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
 			return errors.Wrap(err, "Could not send town channel message")
 		}
-		character.ExtraData["death_cause"] = "hanged"
-		if result = gormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).Save(&character); result.Error != nil {
-			return errors.Wrap(result.Error, "Could not update character with ID "+voted)
-		}
+		return shared.KillCharacter(s, character, "hanged")
 	}
 	_, err = gorm.G[models.GuildVote](gormDB).Where("guild_id = ?", data.Guild.Id).Delete(ctx)
 	return err
