@@ -6,7 +6,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func NewTestInteraction(args lib.SessionArgs, options TestInteractionOptions) *TestInteraction {
+func NewTestInteraction(args *lib.SessionArgs, options TestInteractionOptions) *TestInteraction {
 	return &TestInteraction{
 		session:     args.Session,
 		requester:   options.Requester,

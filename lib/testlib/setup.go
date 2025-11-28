@@ -19,11 +19,11 @@ import (
 
 type TestInitCallback func(injector *do.Injector)
 
-func TestInitDefault(session lib.DiscordSession) lib.SessionArgs {
+func TestInitDefault(session lib.DiscordSession) *lib.SessionArgs {
 	return TestInit(session, func(*do.Injector) {})
 }
 
-func TestInit(session lib.DiscordSession, callback TestInitCallback) lib.SessionArgs {
+func TestInit(session lib.DiscordSession, callback TestInitCallback) *lib.SessionArgs {
 	var err error
 
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -56,20 +56,20 @@ func TestInit(session lib.DiscordSession, callback TestInitCallback) lib.Session
 		do.ProvideValue[lib.Clock](injector, NewMockClock(time.Now()))
 	}
 
-	return lib.SessionArgs{
+	return &lib.SessionArgs{
 		Session:  session,
 		Injector: injector,
 	}
 }
 
-func InteractionInit(args lib.SessionArgs, options TestInteractionOptions) lib.InteractionArgs {
+func InteractionInit(args *lib.SessionArgs, options TestInteractionOptions) lib.InteractionArgs {
 	return lib.InteractionArgs{
 		SessionArgs: args,
 		Interaction: NewTestInteraction(args, options),
 	}
 }
 
-func GenericServerInit(memberCount int, callback TestInitCallback) lib.SessionArgs {
+func GenericServerInit(memberCount int, callback TestInitCallback) *lib.SessionArgs {
 	owner := &discordgo.User{
 		ID: "owner",
 	}
@@ -107,11 +107,11 @@ func GenericServerInit(memberCount int, callback TestInitCallback) lib.SessionAr
 	return sessionArgs
 }
 
-func StartTestGameDefault(memberCount int, playingCount int) lib.SessionArgs {
+func StartTestGameDefault(memberCount int, playingCount int) *lib.SessionArgs {
 	return StartTestGame(memberCount, playingCount, func(injector *do.Injector) {})
 }
 
-func StartTestGame(memberCount int, playingCount int, callback TestInitCallback) lib.SessionArgs {
+func StartTestGame(memberCount int, playingCount int, callback TestInitCallback) *lib.SessionArgs {
 	args := GenericServerInit(memberCount, callback)
 	members, _ := args.Session.GuildMembers()
 	guild, _ := args.Session.Guild()

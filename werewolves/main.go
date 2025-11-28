@@ -4,6 +4,7 @@ import (
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/authorizors"
 	"discord-werewolf/lib/models"
+	"discord-werewolf/lib/shared"
 	"fmt"
 	"strings"
 
@@ -62,6 +63,14 @@ func canKill(ia *lib.InteractionArgs) error {
 	if wolfChannel.Id != ia.Interaction.ChannelId() {
 		return lib.NewPermissionDeniedError("You are not in the werewolves' channel.")
 	}
+	targetId := ia.Interaction.CommandData().GetOption(lib.ActionOptionKillUser).Value.(string)
+	targetedCharacter, err := ia.GuildCharacter(targetId)
+	if err != nil {
+		return err
+	}
+	if targetedCharacter.CharacterId == models.CharacterWolf || targetedCharacter.CharacterId == models.CharacterWolfCub {
+		return lib.NewPermissionDeniedError("You're targeting a wolf. Try again.")
+	}
 	return nil
 }
 
@@ -85,11 +94,11 @@ func voteKill(ia *lib.InteractionArgs) error {
 		vote = &WerewolfKillVote{
 			GuildId:     guildId,
 			UserId:      requesterId,
-			VotingForId: ia.Interaction.CommandData().GetOption("user").Value.(string),
+			VotingForId: ia.Interaction.CommandData().GetOption(lib.ActionOptionKillUser).Value.(string),
 		}
 		result = gormDB.Create(vote)
 	} else {
-		vote.VotingForId = ia.Interaction.CommandData().GetOption("user").Value.(string)
+		vote.VotingForId = ia.Interaction.CommandData().GetOption(lib.ActionOptionKillUser).Value.(string)
 		result = gormDB.Model(&vote).
 			Where("guild_id = ? AND user_id = ?", guildId, requesterId).
 			Updates(vote)
@@ -128,6 +137,7 @@ func startGameListener(s *lib.SessionArgs, data lib.GameStartData) error {
 func dayStartListener(s *lib.SessionArgs, data lib.DayStartData) error {
 	var err error
 	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
+
 	var result *gorm.DB
 	townChannel := data.Guild.ChannelByAppId(models.ChannelTownSquare)
 	if townChannel == nil {
@@ -153,9 +163,7 @@ func dayStartListener(s *lib.SessionArgs, data lib.DayStartData) error {
 			Title:       "No one died last night.",
 			Description: "What a bunch of lazy wolves.",
 		}
-		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
-			return errors.Wrap(err, "Could not send town channel message")
-		}
+		return s.Session.MessageEmbed(townChannel.Id, msg)
 	} else {
 		var character models.GuildCharacter
 		result = gormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).First(&character)
@@ -176,10 +184,6 @@ func dayStartListener(s *lib.SessionArgs, data lib.DayStartData) error {
 		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
 			return errors.Wrap(err, "Could not send town channel message")
 		}
-		character.ExtraData["death_cause"] = "wolf"
-		if result = gormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).Save(&character); result.Error != nil {
-			return errors.Wrap(result.Error, "Could not update character with ID "+voted)
-		}
+		return shared.KillCharacter(s, &character, "werewolf")
 	}
-	return nil
 }

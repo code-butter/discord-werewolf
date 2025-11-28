@@ -9,7 +9,7 @@ import (
 	"github.com/samber/do"
 )
 
-func CallInteraction(args lib.SessionArgs, options testlib.TestInteractionOptions) {
+func CallInteraction(args *lib.SessionArgs, options testlib.TestInteractionOptions) {
 	commandRegistrar := do.MustInvoke[*lib.CommandRegistrar](args.Injector)
 	guild, err := args.AppGuild()
 	if err != nil {
@@ -24,14 +24,14 @@ func CallInteraction(args lib.SessionArgs, options testlib.TestInteractionOption
 	shared.HandleInteraction(commands, interactionArgs)
 }
 
-func StartIntegratedTestGame(memberCount int, playingCount int, callback testlib.TestInitCallback) lib.SessionArgs {
+func StartIntegratedTestGame(memberCount int, playingCount int, callback testlib.TestInitCallback) *lib.SessionArgs {
 	return testlib.StartTestGame(memberCount, playingCount, func(injector *do.Injector) {
 		callback(injector)
 		setup.SetupModules(injector)
 	})
 }
 
-func StartDefaultIntegratedTestGame(memberCount int, playingCount int) lib.SessionArgs {
+func StartDefaultIntegratedTestGame(memberCount int, playingCount int) *lib.SessionArgs {
 	return testlib.StartTestGame(memberCount, playingCount, func(injector *do.Injector) {
 		setup.SetupModules(injector)
 	})

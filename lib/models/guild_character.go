@@ -1,5 +1,7 @@
 package models
 
+import "log"
+
 const EffectInjured = 1
 const EffectStunned = 2
 const EffectMuted = 4
@@ -21,6 +23,16 @@ const CharacterDoppelganger = 10
 const CharacterChaosDemon = 11
 const CharacterVampireKing = 12
 
+var characterDescriptions map[int]string
+
+func init() {
+	cd := map[int]string{}
+	cd[CharacterVillager] = "Villager"
+	cd[CharacterWolf] = "Werewolf"
+	cd[CharacterWolfCub] = "Werewolf Cub"
+	characterDescriptions = cd
+}
+
 type GuildCharacter struct {
 	Id                   string `gorm:"primaryKey"` // The discord user ID
 	GuildId              string `gorm:"primaryKey"`
@@ -28,4 +40,13 @@ type GuildCharacter struct {
 	SecondaryCharacterId int
 	EffectMask           int
 	ExtraData            JsonMap
+}
+
+func (gc *GuildCharacter) CharacterDescription() string {
+	d, ok := characterDescriptions[gc.CharacterId]
+	if !ok {
+		log.Printf("Could not find description for Character ID %d", gc.CharacterId)
+		return ""
+	}
+	return d
 }
