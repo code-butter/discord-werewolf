@@ -63,6 +63,14 @@ func canKill(ia *lib.InteractionArgs) error {
 	if wolfChannel.Id != ia.Interaction.ChannelId() {
 		return lib.NewPermissionDeniedError("You are not in the werewolves' channel.")
 	}
+	targetId := ia.Interaction.CommandData().GetOption(lib.ActionOptionKillUser).Value.(string)
+	targetedCharacter, err := ia.GuildCharacter(targetId)
+	if err != nil {
+		return err
+	}
+	if targetedCharacter.CharacterId == models.CharacterWolf || targetedCharacter.CharacterId == models.CharacterWolfCub {
+		return lib.NewPermissionDeniedError("You're targeting a wolf. Try again.")
+	}
 	return nil
 }
 
@@ -86,11 +94,11 @@ func voteKill(ia *lib.InteractionArgs) error {
 		vote = &WerewolfKillVote{
 			GuildId:     guildId,
 			UserId:      requesterId,
-			VotingForId: ia.Interaction.CommandData().GetOption("user").Value.(string),
+			VotingForId: ia.Interaction.CommandData().GetOption(lib.ActionOptionKillUser).Value.(string),
 		}
 		result = gormDB.Create(vote)
 	} else {
-		vote.VotingForId = ia.Interaction.CommandData().GetOption("user").Value.(string)
+		vote.VotingForId = ia.Interaction.CommandData().GetOption(lib.ActionOptionKillUser).Value.(string)
 		result = gormDB.Model(&vote).
 			Where("guild_id = ? AND user_id = ?", guildId, requesterId).
 			Updates(vote)
