@@ -3,6 +3,7 @@ package game_management
 import (
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/authorizors"
+	"discord-werewolf/lib/models"
 	"discord-werewolf/lib/shared"
 	"regexp"
 
@@ -171,9 +172,38 @@ func Setup(injector *do.Injector) error {
 		},
 	})
 
+	cr.RegisterGlobal(lib.Command{
+		ApplicationCommand: &discordgo.ApplicationCommand{
+			Name:        lib.ActionWhoIsAlive,
+			Description: "List who is alive and/or playing",
+		},
+		Respond: whoIsAlive,
+	})
+
 	return nil
 }
 
 func ping(ia *lib.InteractionArgs) error {
 	return ia.Interaction.Respond("Pong!", false)
+}
+
+func aliveAndDeadList(alive, dead []*models.GuildCharacter, showAliveDescription, showDeadDescription bool) (memberList string) {
+	memberList = "Alive:"
+	for _, v := range alive {
+		memberList += "\n  " + "<q@" + v.Id + ">"
+		if showAliveDescription {
+			memberList += " - " + v.CharacterDescription()
+		}
+	}
+	memberList += "\n\nDead:"
+	for _, v := range dead {
+		memberList += "\n  <@" + v.Id + ">"
+		if showDeadDescription {
+			memberList += " - " + v.CharacterDescription()
+		}
+	}
+	if len(dead) == 0 {
+		memberList += "\n  (none)"
+	}
+	return
 }
