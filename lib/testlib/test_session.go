@@ -2,6 +2,7 @@ package testlib
 
 import (
 	"discord-werewolf/lib"
+	"slices"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
@@ -195,7 +196,7 @@ func (t *TestSession) RemoveRole(userId string, roleName string) error {
 	}
 	for idx, roleId := range selectedMember.Roles {
 		if role.ID == roleId {
-			selectedMember.Roles = append(selectedMember.Roles[:idx], selectedMember.Roles[idx+1:]...)
+			selectedMember.Roles = slices.Delete(selectedMember.Roles, idx, idx+1)
 		}
 	}
 	return nil
