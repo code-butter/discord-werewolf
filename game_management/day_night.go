@@ -182,8 +182,9 @@ func nightListener(s *lib.SessionArgs, data lib.NightStartData) error {
 			return errors.Wrap(err, "Could not get character "+voted)
 		}
 		msg := &discordgo.MessageEmbed{
-			Type:  discordgo.EmbedTypeRich,
-			Title: fmt.Sprintf("The town has hanged <@%s>.", voted),
+			Type:        discordgo.EmbedTypeRich,
+			Title:       "The angry mob demands justice",
+			Description: fmt.Sprintf("<@%s> has been hanged", voted),
 		}
 		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
 			return errors.Wrap(err, "Could not send town channel message")

@@ -35,16 +35,16 @@ func checkWinConditions(s *lib.SessionArgs, data lib.CharacterDeathData) error {
 
 	for _, c := range characters {
 		if c.CharacterId == models.CharacterWolf || c.CharacterId == models.CharacterWolfCub {
-			if !slices.Contains(aliveIds, c.Id) {
-				deadWolves = append(deadWolves, c)
-			} else {
+			if slices.Contains(aliveIds, c.Id) {
 				aliveWolves = append(aliveWolves, c)
+			} else {
+				deadWolves = append(deadWolves, c)
 			}
 		} else {
-			if !slices.Contains(aliveIds, c.Id) {
-				deadVillagers = append(deadWolves, c)
+			if slices.Contains(aliveIds, c.Id) {
+				aliveVillagers = append(aliveVillagers, c)
 			} else {
-				aliveVillagers = append(aliveWolves, c)
+				deadVillagers = append(deadVillagers, c)
 			}
 		}
 	}
@@ -78,7 +78,7 @@ func aliveAndDeadList(alive, dead []*models.GuildCharacter) (memberList string) 
 	for _, v := range alive {
 		memberList += "\n  " + "<@" + v.Id + ">" + v.CharacterDescription()
 	}
-	memberList += "Dead:"
+	memberList += "\n\nDead:"
 	for _, v := range dead {
 		memberList += "\n  <@" + v.Id + ">" + v.CharacterDescription()
 	}
