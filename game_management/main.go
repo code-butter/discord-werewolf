@@ -180,6 +180,22 @@ func Setup(injector *do.Injector) error {
 		Respond: whoIsAlive,
 	})
 
+	cr.RegisterGlobal(lib.Command{
+		ApplicationCommand: &discordgo.ApplicationCommand{
+			Name:        lib.ActionShowVotesFor,
+			Description: "List number of votes for each player",
+		},
+		Respond: showVotesFor,
+	})
+
+	cr.RegisterGlobal(lib.Command{
+		ApplicationCommand: &discordgo.ApplicationCommand{
+			Name:        lib.ActionShowVotersFor,
+			Description: "List votes for each player",
+		},
+		Respond: showVotersFor,
+	})
+
 	return nil
 }
 
@@ -190,7 +206,7 @@ func ping(ia *lib.InteractionArgs) error {
 func aliveAndDeadList(alive, dead []*models.GuildCharacter, showAliveDescription, showDeadDescription bool) (memberList string) {
 	memberList = "Alive:"
 	for _, v := range alive {
-		memberList += "\n  " + "<q@" + v.Id + ">"
+		memberList += "\n  " + "<@" + v.Id + ">"
 		if showAliveDescription {
 			memberList += " - " + v.CharacterDescription()
 		}

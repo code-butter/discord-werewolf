@@ -82,6 +82,14 @@ func (args *SessionArgs) GuildCharacter(id string) (*models.GuildCharacter, erro
 	return &character, nil
 }
 
+func (args *SessionArgs) ChannelByAppId(appId string) (*models.GuildChannel, error) {
+	guild, err := args.AppGuild()
+	if err != nil {
+		return nil, err
+	}
+	return guild.ChannelByAppId(appId), nil
+}
+
 type DiscordSession interface {
 	// Guild gets the server's guild object
 	Guild() (*discordgo.Guild, error)

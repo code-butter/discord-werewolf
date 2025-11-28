@@ -7,6 +7,7 @@ import (
 type InteractionArgs struct {
 	*SessionArgs
 	Interaction Interaction
+	GuildId     string
 }
 
 type InteractionAction func(*InteractionArgs) error

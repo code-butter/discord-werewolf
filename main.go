@@ -114,6 +114,7 @@ func main() {
 					Injector: injector,
 				},
 				Interaction: interaction,
+				GuildId:     i.GuildID,
 			}
 			shared.HandleInteraction(commands, args)
 		}

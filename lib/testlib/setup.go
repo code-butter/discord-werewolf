@@ -63,9 +63,14 @@ func TestInit(session lib.DiscordSession, callback TestInitCallback) *lib.Sessio
 }
 
 func InteractionInit(args *lib.SessionArgs, options TestInteractionOptions) lib.InteractionArgs {
+	guild, err := args.Session.Guild()
+	if err != nil {
+		log.Fatal(errors.Wrap(err, "Could not get guild from session"))
+	}
 	return lib.InteractionArgs{
 		SessionArgs: args,
 		Interaction: NewTestInteraction(args, options),
+		GuildId:     guild.ID,
 	}
 }
 
