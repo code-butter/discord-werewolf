@@ -1,6 +1,7 @@
 package werewolves
 
 import (
+	"context"
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/authorizors"
 	"discord-werewolf/lib/models"
@@ -135,8 +136,8 @@ func startGameListener(s *lib.SessionArgs, data lib.GameStartData) error {
 	return s.Session.Message(wolvesChannel.Id, msg+wolfMsg)
 }
 func dayStartListener(s *lib.SessionArgs, data lib.DayStartData) error {
-	var err error
-	gormDB := do.MustInvoke[*gorm.DB](s.Injector)
+	db := do.MustInvoke[*gorm.DB](s.Injector)
+	ctx := do.MustInvoke[context.Context](s.Injector)
 
 	var result *gorm.DB
 	townChannel := data.Guild.ChannelByAppId(models.ChannelTownSquare)
@@ -144,7 +145,7 @@ func dayStartListener(s *lib.SessionArgs, data lib.DayStartData) error {
 		return errors.New("No town channel found for guild " + data.Guild.Id)
 	}
 	var voted string
-	result = gormDB.
+	result = db.
 		Model(&WerewolfKillVote{}).
 		Select("voting_for_id").
 		Group("voting_for_id").
@@ -165,17 +166,24 @@ func dayStartListener(s *lib.SessionArgs, data lib.DayStartData) error {
 		}
 		return s.Session.MessageEmbed(townChannel.Id, msg)
 	} else {
-		var character models.GuildCharacter
-		result = gormDB.Where("id = ? AND guild_id = ?", voted, data.Guild.Id).First(&character)
-		if result.Error != nil {
+		character, err := gorm.G[models.GuildCharacter](db).
+			Where("id = ? AND guild_id = ?", voted, data.Guild.Id).
+			First(ctx)
+		if err != nil {
 			return errors.Wrap(result.Error, "Could not find character with ID "+voted)
 		}
-		if err = s.Session.RemoveRole(voted, "Alive"); err != nil {
-			return errors.Wrap(err, "Could not remove Alive role")
+
+		if err = shared.KillCharacter(s, &character, "werewolf"); err != nil {
+			return err
 		}
-		if err = s.Session.AssignRole(voted, "Dead"); err != nil {
-			return errors.Wrap(err, "Could not assign Dead role")
+
+		_, err = gorm.G[WerewolfKillVote](db).
+			Where("guild_id = ?", data.Guild.Id).
+			Delete(ctx)
+		if err != nil {
+			return errors.Wrap(result.Error, "Could not delete werewolf votes on guild "+data.Guild.Id)
 		}
+
 		msg := &discordgo.MessageEmbed{
 			Type:        discordgo.EmbedTypeRich,
 			Title:       "Last night the werwolves attacked!",
@@ -184,6 +192,6 @@ func dayStartListener(s *lib.SessionArgs, data lib.DayStartData) error {
 		if err = s.Session.MessageEmbed(townChannel.Id, msg); err != nil {
 			return errors.Wrap(err, "Could not send town channel message")
 		}
-		return shared.KillCharacter(s, &character, "werewolf")
+		return nil
 	}
 }

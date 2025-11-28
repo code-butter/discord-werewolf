@@ -9,6 +9,8 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/pkg/errors"
+	"github.com/samber/do"
+	"gorm.io/gorm"
 )
 
 func TestWerewolfKill(t *testing.T) {
@@ -73,6 +75,14 @@ func TestWerewolfKill(t *testing.T) {
 
 func TestWerewolfGameEnd(t *testing.T) {
 	s := StartDefaultIntegratedTestGame(5, 5)
+
+	db := do.MustInvoke[*gorm.DB](s.Injector)
+
+	guild, err := s.AppGuild()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	characters, err := s.GuildCharacters()
 	if err != nil {
 		t.Fatalf("Error getting guild's characters: %v", err)
@@ -83,7 +93,7 @@ func TestWerewolfGameEnd(t *testing.T) {
 		t.Fatalf("Werewolves do not equal required amount")
 	}
 
-	for i := 0; i < len(villagers)-1; i++ {
+	for i := 0; i < len(villagers)-2; i++ {
 		aliveMembers, err := s.Session.GuildMembersWithRole(lib.RoleAlive)
 		if err != nil {
 			t.Fatal(err)
@@ -101,12 +111,23 @@ func TestWerewolfGameEnd(t *testing.T) {
 		if err = shared.StartDay(s); err != nil {
 			t.Fatal(err)
 		}
+		var wolfVoteCount int
+		result := db.Table("werewolf_kill_votes").
+			Select("COUNT(guild_id) as count").
+			Where("guild_id = ?", guild.Id).
+			Pluck("count", &wolfVoteCount)
+		if result.Error != nil {
+			t.Fatal(result.Error)
+		}
+		if wolfVoteCount != 0 {
+			t.Error("Wolf vote does not equal 0 after day starts.")
+		}
 		if err = shared.StartNight(s); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	guild, err := s.AppGuild()
+	guild, err = s.AppGuild() // reload guild
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -58,7 +58,9 @@ func voteFor(ia *lib.InteractionArgs) error {
 				UserId:      userId,
 				VotingForId: voteForId,
 			}
-			return gvdb.Create(ctx, &vote)
+			if err = gvdb.Create(ctx, &vote); err != nil {
+				return err
+			}
 		} else {
 			return err
 		}
