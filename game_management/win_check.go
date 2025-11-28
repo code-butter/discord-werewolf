@@ -53,14 +53,14 @@ func checkWinConditions(s *lib.SessionArgs, data lib.CharacterDeathData) error {
 	aliveWolfCount := len(aliveWolves)
 	aliveVillagerCount := len(aliveVillagers)
 	if aliveWolfCount == 0 {
-		memberList := aliveAndDeadList(aliveVillagers, deadVillagers)
+		memberList := aliveAndDeadList(aliveVillagers, deadVillagers, true, true)
 		msg = &discordgo.MessageEmbed{
 			Type:        discordgo.EmbedTypeRich,
 			Title:       "Villagers win!",
 			Description: "There is no more evil in the town.\n\n" + memberList,
 		}
 	} else if aliveWolfCount >= aliveVillagerCount {
-		memberList := aliveAndDeadList(aliveWolves, deadWolves)
+		memberList := aliveAndDeadList(aliveWolves, deadWolves, true, true)
 		msg = &discordgo.MessageEmbed{
 			Type:        discordgo.EmbedTypeRich,
 			Title:       "Werewolves win!",
@@ -71,19 +71,4 @@ func checkWinConditions(s *lib.SessionArgs, data lib.CharacterDeathData) error {
 		return lib.GameOver{MessageEmbed: *msg}
 	}
 	return nil
-}
-
-func aliveAndDeadList(alive, dead []*models.GuildCharacter) (memberList string) {
-	memberList = "Alive:"
-	for _, v := range alive {
-		memberList += "\n  " + "<@" + v.Id + "> - " + v.CharacterDescription()
-	}
-	memberList += "\n\nDead:"
-	for _, v := range dead {
-		memberList += "\n  <@" + v.Id + "> - " + v.CharacterDescription()
-	}
-	if len(dead) == 0 {
-		memberList += "\n  (none)"
-	}
-	return
 }
