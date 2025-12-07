@@ -8,6 +8,10 @@ This is currently in the alpha stage so there might be game disruption bugs. Cur
 (wolves + villagers) is supported. When all current characters and game modes are fully supported this game will reach 
 1.0 status. 
 
+_*Until version 1.0 breaking changes may be made, up to and including needing to delete the database and 
+remigrate in order for the game to function. As this is a work in progress documentation is rather sparse, but we plan 
+to flesh it out fully. Star this repo for updates!*_
+
 ## Setup
 
 ### Discord Application
@@ -36,9 +40,8 @@ It is highly recommended to mount a volume at `/data` if you are using the conta
 Once the bot is connected to your guild, run the `/init` command to set up the game on your server.
 
 
-## Further updates
 
-As this is a work in progress documentation is rather sparse. Most of the base work for the game is completed and so we 
-shouldn't see too much refactoring. Star this repo for updates!
+
+
 
  

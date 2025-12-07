@@ -24,7 +24,7 @@ type GuildSettings struct {
 	clock Clock
 }
 
-func NewGameSettings(i *do.Injector) (*GuildSettings, error) {
+func GameSettingsProvider(i *do.Injector) (*GuildSettings, error) {
 	db, err := do.Invoke[*gorm.DB](i)
 	if err != nil {
 		return nil, err

@@ -4,6 +4,7 @@ package shared
 
 import (
 	"discord-werewolf/lib"
+	"discord-werewolf/lib/characters"
 	"discord-werewolf/lib/models"
 
 	"fmt"
@@ -69,8 +70,9 @@ func init() {
 func SetupInjector() *do.Injector {
 	injector := do.New()
 	do.ProvideValue[*lib.GameListeners](injector, lib.NewGameListeners())
-	do.Provide[*lib.GuildSettings](injector, lib.NewGameSettings)
+	do.Provide[*lib.GuildSettings](injector, lib.GameSettingsProvider)
 	do.ProvideValue[*lib.CommandRegistrar](injector, lib.NewCommandRegistrar())
+	do.Provide[*characters.CharacterRegistry](injector, characters.CharacterRegistryProvider)
 	return injector
 }
 
@@ -109,7 +111,7 @@ func InitGuild(ia *lib.InteractionArgs) error {
 	}
 
 	////////////////////////////////////////
-	// TODO: REMOVE/MODIFY THIS BEFORE PROD DEPLOY
+	// TODO: REMOVE/MODIFY THIS BEFORE 1.0 RELEASE
 	discordChannels, err := ia.Session.Channels()
 
 	for _, channel := range discordChannels {
