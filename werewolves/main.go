@@ -4,6 +4,7 @@ import (
 	"context"
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/authorizors"
+	"discord-werewolf/lib/characters"
 	"discord-werewolf/lib/models"
 	"discord-werewolf/lib/shared"
 	"fmt"
@@ -16,7 +17,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func Setup(injector *do.Injector) error {
+func Setup(injector *do.Injector) (err error) {
 	l := do.MustInvoke[*lib.GameListeners](injector)
 	cr := do.MustInvoke[*lib.CommandRegistrar](injector)
 
@@ -45,7 +46,7 @@ func Setup(injector *do.Injector) error {
 	l.GameStart.Add(startGameListener)
 	l.DayStart.Add(dayStartListener)
 
-	return nil
+	return
 }
 
 func canKill(ia *lib.InteractionArgs) error {
@@ -53,7 +54,7 @@ func canKill(ia *lib.InteractionArgs) error {
 	if err != nil {
 		return err
 	}
-	if character.CharacterId != models.CharacterWolf && character.CharacterId != models.CharacterWolfCub {
+	if character.CharacterId != characters.Werewolf && character.CharacterId != characters.WerewolfCub {
 		return lib.NewPermissionDeniedError("You're not a wolf!")
 	}
 	guild, err := ia.AppGuild()
@@ -69,7 +70,7 @@ func canKill(ia *lib.InteractionArgs) error {
 	if err != nil {
 		return err
 	}
-	if targetedCharacter.CharacterId == models.CharacterWolf || targetedCharacter.CharacterId == models.CharacterWolfCub {
+	if targetedCharacter.CharacterId == characters.Werewolf || targetedCharacter.CharacterId == characters.WerewolfCub {
 		return lib.NewPermissionDeniedError("You're targeting a wolf. Try again.")
 	}
 	return nil
@@ -120,7 +121,7 @@ func startGameListener(s *lib.SessionArgs, data lib.GameStartData) error {
 	var postPermissions int64 = discordgo.PermissionViewChannel | discordgo.PermissionSendMessages
 	var wolfMentions []string
 	for _, character := range data.Characters {
-		if character.CharacterId == models.CharacterWolf || character.CharacterId == models.CharacterWolfCub {
+		if character.CharacterId == characters.Werewolf || character.CharacterId == characters.WerewolfCub {
 			if err = s.Session.UserChannelPermissions(wolvesChannel.Id, character.Id, postPermissions, 0); err != nil {
 				return errors.Wrap(err, "could not set post permissions for wolf channel")
 			}

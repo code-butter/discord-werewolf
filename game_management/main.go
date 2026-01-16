@@ -208,14 +208,14 @@ func aliveAndDeadList(alive, dead []*models.GuildCharacter, showAliveDescription
 	for _, v := range alive {
 		memberList += "\n  " + "<@" + v.Id + ">"
 		if showAliveDescription {
-			memberList += " - " + v.CharacterDescription()
+			memberList += " - " + v.Label(false, true)
 		}
 	}
 	memberList += "\n\nDead:"
 	for _, v := range dead {
 		memberList += "\n  <@" + v.Id + ">"
 		if showDeadDescription {
-			memberList += " - " + v.CharacterDescription()
+			memberList += " - " + v.Label(false, true)
 		}
 	}
 	if len(dead) == 0 {

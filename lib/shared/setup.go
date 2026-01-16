@@ -4,7 +4,6 @@ package shared
 
 import (
 	"discord-werewolf/lib"
-	"discord-werewolf/lib/characters"
 	"discord-werewolf/lib/models"
 
 	"fmt"
@@ -72,7 +71,6 @@ func SetupInjector() *do.Injector {
 	do.ProvideValue[*lib.GameListeners](injector, lib.NewGameListeners())
 	do.Provide[*lib.GuildSettings](injector, lib.GameSettingsProvider)
 	do.ProvideValue[*lib.CommandRegistrar](injector, lib.NewCommandRegistrar())
-	do.Provide[*characters.CharacterRegistry](injector, characters.CharacterRegistryProvider)
 	return injector
 }
 

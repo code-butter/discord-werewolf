@@ -6,7 +6,6 @@ import (
 
 // TODO: implement different game modes
 // TODO: enable scheduled start
-// This is public for tests in other packages
 
 func playing(ia *lib.InteractionArgs) error {
 	if err := ia.Interaction.AssignRoleToRequester(lib.RolePlaying); err != nil {

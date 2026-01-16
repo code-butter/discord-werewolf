@@ -1,29 +1,25 @@
 package characters
 
-type DbCharacter struct {
-	Id    int
-	Label string
-}
-
 type Character struct {
-	*DbCharacter
-	*GameScore
-	Team     string
-	Class    string
-	WinCount bool // does this member count toward the win conditions?
+	Id          string
+	TeamId      string
+	Label       string
+	GameScore   int
+	Class       string
+	Description string
+	WinCount    bool     // does this member count toward the win conditions?
+	FakeIds     []string // Character IDs that this user could be reported as (for fool, cub, etc.)
 }
 
-type ClassAssigner func(balancer GameBalance) (character Character, followupRequested bool, err error)
-
-type GameScore struct {
-	WolfScore    int
-	VampireScore int
+type SecondaryCharacter struct {
+	Id          string
+	TeamId      string
+	Label       string
+	Description string
+	WinCount    bool
 }
 
-type GameBalance struct {
-	*GameScore
-	RandomMode    bool                // Ignore the score
-	AcceptableIds []int               // Character IDs that can be used
-	AssignedIds   map[int]int         // IDs already assigned and count
-	SkipClasses   map[string][]string // Teams -> classes that need to be skipped
+type Team struct {
+	Id    string
+	Label string
 }

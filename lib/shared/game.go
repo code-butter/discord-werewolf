@@ -3,6 +3,7 @@ package shared
 import (
 	"context"
 	"discord-werewolf/lib"
+	"discord-werewolf/lib/characters"
 	"discord-werewolf/lib/models"
 	"math/rand"
 
@@ -78,7 +79,7 @@ func StartGame(ia *lib.InteractionArgs) error {
 		players[i], players[j] = players[j], players[i]
 	}
 
-	characters := make([]models.GuildCharacter, 0)
+	characterList := make([]models.GuildCharacter, 0)
 
 	for i, player := range players {
 		character := models.GuildCharacter{
@@ -87,18 +88,18 @@ func StartGame(ia *lib.InteractionArgs) error {
 			ExtraData: models.JsonMap{},
 		}
 		if i%5 == 0 {
-			character.CharacterId = models.CharacterWolf
+			character.CharacterId = characters.Werewolf
 		} else {
-			character.CharacterId = models.CharacterVillager
+			character.CharacterId = characters.Villager
 		}
-		characters = append(characters, character)
+		characterList = append(characterList, character)
 	}
 
-	if result = gormDB.Save(characters); result.Error != nil {
+	if result = gormDB.Save(characterList); result.Error != nil {
 		return result.Error
 	}
 
-	for _, character := range characters {
+	for _, character := range characterList {
 		if err = ia.Session.RemoveRole(character.Id, lib.RolePlaying); err != nil {
 			return errors.Wrap(err, "could not remove playing role from user")
 		}
@@ -116,7 +117,7 @@ func StartGame(ia *lib.InteractionArgs) error {
 
 	err = listeners.GameStart.Trigger(ia.SessionArgs, lib.GameStartData{
 		Guild:      guild,
-		Characters: characters,
+		Characters: characterList,
 	})
 	if err != nil {
 		return err

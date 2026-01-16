@@ -1,9 +1,8 @@
-package game_management
+package shared
 
 import (
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/models"
-	"discord-werewolf/lib/shared"
 	"discord-werewolf/lib/testlib"
 	"fmt"
 	"iter"
@@ -34,7 +33,7 @@ func TestServerInit(t *testing.T) {
 	args := testlib.InteractionInit(sessionArgs, testlib.TestInteractionOptions{
 		Requester: owner,
 	})
-	if err := shared.InitGuild(&args); err != nil {
+	if err := InitGuild(&args); err != nil {
 		t.Fatal(err)
 	}
 	var guild models.Guild
@@ -52,7 +51,7 @@ func TestServerInit(t *testing.T) {
 	discordChannels, _ := args.Session.Channels()
 	dbChannels := maps.Values(guild.Channels)
 
-	for _, ic := range shared.InitialChannels {
+	for _, ic := range InitialChannels {
 		var err error
 		var parentChannel *models.GuildChannel
 		if parentChannel, err = verifyChannels(ic.AppId, dbChannels, discordChannels); err != nil {

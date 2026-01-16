@@ -2,6 +2,7 @@ package game_management
 
 import (
 	"discord-werewolf/lib"
+	"discord-werewolf/lib/characters"
 	"discord-werewolf/lib/models"
 	"slices"
 
@@ -24,7 +25,7 @@ func checkWinConditions(s *lib.SessionArgs, data lib.CharacterDeathData) error {
 	for _, m := range alive {
 		aliveIds = append(aliveIds, m.User.ID)
 	}
-	characters, err := s.GuildCharacters()
+	characterList, err := s.GuildCharacters()
 	if err != nil {
 		return err
 	}
@@ -33,8 +34,8 @@ func checkWinConditions(s *lib.SessionArgs, data lib.CharacterDeathData) error {
 	aliveWolves := make([]*models.GuildCharacter, 0)
 	deadWolves := make([]*models.GuildCharacter, 0)
 
-	for _, c := range characters {
-		if c.CharacterId == models.CharacterWolf || c.CharacterId == models.CharacterWolfCub {
+	for _, c := range characterList {
+		if c.CharacterId == characters.Werewolf || c.CharacterId == characters.WerewolfCub {
 			if slices.Contains(aliveIds, c.Id) {
 				aliveWolves = append(aliveWolves, c)
 			} else {
