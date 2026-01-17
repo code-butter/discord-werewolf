@@ -36,6 +36,7 @@ func (cr *CommandRegistrar) getGuildSet(guildId string) map[string]Command {
 	return guildSet
 }
 
+// TODO: make sure this is refreshed on server restarts
 func (cr *CommandRegistrar) RegisterGuild(guildId string, c Command) {
 	guildSet := cr.getGuildSet(guildId)
 	guildSet[c.Name] = c

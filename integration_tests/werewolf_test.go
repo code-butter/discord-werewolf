@@ -2,6 +2,7 @@ package integration_tests
 
 import (
 	"discord-werewolf/lib"
+	"discord-werewolf/lib/characters"
 	"discord-werewolf/lib/models"
 	"discord-werewolf/lib/shared"
 	"discord-werewolf/lib/testlib"
@@ -137,9 +138,9 @@ func TestWerewolfGameEnd(t *testing.T) {
 
 }
 
-func getWolvesVillagers(characters []*models.GuildCharacter) (wolves, villagers []*models.GuildCharacter) {
-	for _, character := range characters {
-		if character.CharacterId == models.CharacterWolf || character.CharacterId == models.CharacterWolfCub {
+func getWolvesVillagers(guildCharacters []*models.GuildCharacter) (wolves, villagers []*models.GuildCharacter) {
+	for _, character := range guildCharacters {
+		if character.CharacterId == characters.Werewolf || character.CharacterId == characters.WerewolfCub {
 			wolves = append(wolves, character)
 		} else {
 			villagers = append(villagers, character)

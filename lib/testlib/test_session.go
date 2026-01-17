@@ -68,6 +68,14 @@ type TestSession struct {
 	Members       []*discordgo.Member
 }
 
+func (t *TestSession) EnsureTextChannel(name string, parentId string, channelId *string) (*discordgo.Channel, error) {
+	return t.CreateTextChannel(name, parentId)
+}
+
+func (t *TestSession) EnsureCategoryChannel(name string, channelId *string) (*discordgo.Channel, error) {
+	return t.CreateCategoryChannel(name)
+}
+
 func (t *TestSession) Guild() (*discordgo.Guild, error) {
 	return &discordgo.Guild{
 		ID:   t.GuildId,

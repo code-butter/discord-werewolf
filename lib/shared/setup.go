@@ -5,7 +5,6 @@ package shared
 import (
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/models"
-
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
@@ -17,17 +16,44 @@ import (
 
 type SetupFunction func(i *do.Injector) error
 
-var InitialChannels map[string]models.GuildChannel
+var InitialChannels []models.GuildChannel
 
 func init() {
-	InitialChannels = map[string]models.GuildChannel{
-		"game-instructions": {
-			Name:     "Game Instructions",
-			AppId:    models.CatChannelInstructions,
-			Children: &[]models.GuildChannel{},
+	InitialChannels = []models.GuildChannel{
+		{
+			Name:  "Admin",
+			AppId: models.CatChannelAdmin,
+			Children: &[]models.GuildChannel{
+				{
+					Name:  "settings",
+					AppId: models.ChannelAdminSettings,
+				},
+				{
+					Name:  "characters",
+					AppId: models.ChannelAdminCharacters,
+				},
+			},
+		},
+		{
+			Name:  "Game Instructions",
+			AppId: models.CatChannelInstructions,
+			Children: &[]models.GuildChannel{
+				{
+					Name:  models.ChannelHowToPlay,
+					AppId: models.ChannelHowToPlay,
+				},
+				{
+					Name:  models.ChannelPlayerRoles,
+					AppId: models.ChannelPlayerRoles,
+				},
+				{
+					Name:  models.ChannelCommands,
+					AppId: models.ChannelCommands,
+				},
+			},
 		},
 		// seer and lovers channels are created on demand
-		"the-town": {
+		{
 			Name:  "The Town",
 			AppId: models.CatChannelTheTown,
 			Children: &[]models.GuildChannel{
@@ -56,11 +82,6 @@ func init() {
 					AppId: models.ChannelAfterLife,
 				},
 			},
-		},
-		"admin": {
-			Name:     "Admin",
-			AppId:    models.CatChannelAdmin,
-			Children: &[]models.GuildChannel{},
 		},
 	}
 }
@@ -110,17 +131,17 @@ func InitGuild(ia *lib.InteractionArgs) error {
 
 	////////////////////////////////////////
 	// TODO: REMOVE/MODIFY THIS BEFORE 1.0 RELEASE
-	discordChannels, err := ia.Session.Channels()
-
-	for _, channel := range discordChannels {
-		if channel.Name == "general" {
-			continue
-		}
-		if err = ia.Session.DeleteChannel(channel.ID); err != nil {
-			return errors.Wrap(err, "Could not delete channel")
-		}
-	}
-	////////////////////////////////////////
+	//discordChannels, err := ia.Session.Channels()
+	//
+	//for _, channel := range discordChannels {
+	//	if channel.Name == "general" {
+	//		continue
+	//	}
+	//	if err = ia.Session.DeleteChannel(channel.ID); err != nil {
+	//		return errors.Wrap(err, "Could not delete channel")
+	//	}
+	//}
+	//////////////////////////////////////
 
 	// Create roles if they don't exist
 	guildRoles, err := ia.Session.GetRoles()
@@ -145,7 +166,18 @@ func InitGuild(ia *lib.InteractionArgs) error {
 
 	saveChannels := models.GuildChannels{}
 	for _, initChannel := range InitialChannels {
-		discordCat, err := ia.Session.CreateCategoryChannel(initChannel.Name)
+		var cat *models.GuildChannel
+		var dbCatId *string
+		if cat = guildRecord.ChannelByAppId(initChannel.AppId); cat != nil {
+			dbCatId = &cat.Id
+		} else {
+			cat = &models.GuildChannel{
+				Name:     initChannel.Name,
+				AppId:    initChannel.AppId,
+				Children: &[]models.GuildChannel{},
+			}
+		}
+		discordCat, err := ia.Session.EnsureCategoryChannel(initChannel.Name, dbCatId)
 		if err != nil {
 			return errors.Wrap(err, "Could not create category channel")
 		}
@@ -157,15 +189,21 @@ func InitGuild(ia *lib.InteractionArgs) error {
 				return errors.Wrap(err, "Could not set channel permissions for admin role")
 			}
 		}
-		cat := models.GuildChannel{
-			Name:     initChannel.Name,
-			Id:       discordCat.ID,
-			AppId:    initChannel.AppId,
-			Children: &[]models.GuildChannel{},
-		}
+		cat.Id = discordCat.ID
 		var catChildren []models.GuildChannel
 		for _, child := range *initChannel.Children {
-			discordChannel, err := ia.Session.CreateTextChannel(child.Name, cat.Id)
+			var childCat *models.GuildChannel
+			var childCatId *string
+			childCat = guildRecord.ChannelByAppId(child.AppId)
+			if childCat != nil {
+				childCatId = &childCat.Id
+			} else {
+				childCat = &models.GuildChannel{
+					Name:  child.Name,
+					AppId: child.AppId,
+				}
+			}
+			discordChannel, err := ia.Session.EnsureTextChannel(child.Name, cat.Id, childCatId)
 			if err != nil {
 				msg := fmt.Sprintf("Could not create text channel for child %s in guild %s", child.Name, guild.Name)
 				return errors.Wrap(err, msg)
@@ -187,14 +225,11 @@ func InitGuild(ia *lib.InteractionArgs) error {
 					return errors.Wrap(err, "Could not set Dead channel permissions for channel "+child.Name)
 				}
 			}
-			catChildren = append(catChildren, models.GuildChannel{
-				Name:  child.Name,
-				AppId: child.AppId,
-				Id:    discordChannel.ID,
-			})
+			childCat.Id = discordChannel.ID
+			catChildren = append(catChildren, *childCat)
 		}
 		cat.Children = &catChildren
-		saveChannels[cat.AppId] = cat
+		saveChannels[cat.AppId] = *cat
 	}
 	guildRecord.Channels = saveChannels
 

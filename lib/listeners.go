@@ -4,6 +4,7 @@ import (
 	"discord-werewolf/lib/models"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/samber/do"
 )
 
 func NewGameListeners() *GameListeners {
@@ -21,6 +22,8 @@ type ListenerCallback[T any] func(s *SessionArgs, data T) error
 type ListenerTracker[T any] struct {
 	listeners []ListenerCallback[T]
 }
+
+type SetupFunction func(injector *do.Injector) error
 
 type GameListeners struct {
 	GameStart      *ListenerTracker[GameStartData]

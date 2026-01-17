@@ -31,7 +31,10 @@ func findChannel(appId string, channels iter.Seq[GuildChannel]) *GuildChannel {
 			return &c
 		}
 		if c.Children != nil {
-			return findChannel(appId, slices.Values(*c.Children))
+			child := findChannel(appId, slices.Values(*c.Children))
+			if child != nil {
+				return child
+			}
 		}
 	}
 	return nil

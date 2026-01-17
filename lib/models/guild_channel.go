@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 )
 
-// Used for AppIds and initial channel names
+// Town channels
 
 const ChannelTownSquare = "town-square"
 const ChannelWerewolves = "werewolves"
@@ -13,6 +13,17 @@ const ChannelWitch = "witch"
 const ChannelMasons = "masons"
 const ChannelBodyguard = "bodyguard"
 const ChannelAfterLife = "after-life"
+
+// Admin channels
+
+const ChannelAdminSettings = "admin-settings"
+const ChannelAdminCharacters = "admin-characters"
+
+// Instruction channels
+
+const ChannelHowToPlay = "how-to-play"
+const ChannelPlayerRoles = "player-roles"
+const ChannelCommands = "commands"
 
 // Parent channels
 

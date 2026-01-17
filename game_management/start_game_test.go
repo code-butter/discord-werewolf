@@ -2,6 +2,7 @@ package game_management
 
 import (
 	"discord-werewolf/lib"
+	"discord-werewolf/lib/characters"
 	"discord-werewolf/lib/models"
 	"discord-werewolf/lib/shared"
 	"discord-werewolf/lib/testlib"
@@ -42,7 +43,7 @@ func TestStartGame(t *testing.T) {
 	result = gormDb.
 		Model(&models.GuildCharacter{}).
 		Select("count(*) as cnt").
-		Where("character_id = ? AND guild_id = ?", models.CharacterWolf, guild.ID).
+		Where("character_id = ? AND guild_id = ?", characters.Werewolf, guild.ID).
 		Pluck("cnt", &actualWolfCount)
 	if result.Error != nil {
 		t.Error(result.Error)

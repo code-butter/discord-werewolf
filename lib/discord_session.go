@@ -3,6 +3,7 @@ package lib
 import (
 	"discord-werewolf/lib/models"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -103,8 +104,14 @@ type DiscordSession interface {
 	// CreateTextChannel Creates a text channel, optionally within a category
 	CreateTextChannel(name string, parentId string) (*discordgo.Channel, error)
 
+	// EnsureTextChannel Ensures a text channel is created. Pass in the last known Discord channel ID to assist with locating it.
+	EnsureTextChannel(name string, parentId string, channelId *string) (*discordgo.Channel, error)
+
 	// CreateCategoryChannel Creates a channel category
 	CreateCategoryChannel(name string) (*discordgo.Channel, error)
+
+	// EnsureCategoryChannel Ensures category channel is created
+	EnsureCategoryChannel(name string, channelId *string) (*discordgo.Channel, error)
 
 	// ClearChannelMessages removes all messages from a channel
 	ClearChannelMessages(id string) error
@@ -115,7 +122,7 @@ type DiscordSession interface {
 	// GetRoleByName gets a role by its name
 	GetRoleByName(name string) (*discordgo.Role, error)
 
-	// EnsureRoleCreated Created or updates role with color. Pass in roles from `GetRoles`.
+	// EnsureRoleCreated Createss or updates role with color. Pass in roles from `GetRoles`.
 	EnsureRoleCreated(name string, color int, roles discordgo.Roles) error
 
 	// DeleteChannel Removes discord channel
@@ -175,6 +182,46 @@ type GuildDiscordSession struct {
 	session   *discordgo.Session
 	guildID   string
 	roleCache *InteractionCache[[]*discordgo.Role]
+}
+
+func isRestError(err error, code int) bool {
+	if err == nil {
+		return false
+	}
+	var restErr *discordgo.RESTError
+	if errors.As(err, &restErr) && restErr.Message != nil {
+		return restErr.Message.Code == code
+	}
+	return false
+}
+
+func (l *GuildDiscordSession) EnsureTextChannel(name string, parentId string, channelId *string) (*discordgo.Channel, error) {
+	if channelId != nil {
+		channel, err := l.session.Channel(*channelId)
+		if err != nil && !isRestError(err, discordgo.ErrCodeUnknownChannel) {
+			return nil, err
+		} else if channel != nil {
+			if channel.ParentID != parentId {
+				channel, err = l.session.ChannelEditComplex(*channelId, &discordgo.ChannelEdit{
+					ParentID: parentId,
+				})
+			}
+			return channel, nil
+		}
+	}
+	return l.CreateTextChannel(name, parentId)
+}
+
+func (l *GuildDiscordSession) EnsureCategoryChannel(name string, channelId *string) (*discordgo.Channel, error) {
+	if channelId != nil {
+		channel, err := l.session.Channel(*channelId)
+		if err != nil && !isRestError(err, discordgo.ErrCodeUnknownChannel) {
+			return nil, err
+		} else if channel != nil {
+			return channel, nil
+		}
+	}
+	return l.CreateCategoryChannel(name)
 }
 
 func (l *GuildDiscordSession) GuildMember(userId string) (*discordgo.Member, error) {
@@ -351,6 +398,7 @@ func (l *GuildDiscordSession) Channels() ([]*discordgo.Channel, error) {
 }
 
 func (l *GuildDiscordSession) CreateTextChannel(name string, parentId string) (*discordgo.Channel, error) {
+	log.Printf("Creating channel %s on %s", name, parentId)
 	return l.session.GuildChannelCreateComplex(l.guildID, discordgo.GuildChannelCreateData{
 		Name:     name,
 		ParentID: parentId,
@@ -359,6 +407,7 @@ func (l *GuildDiscordSession) CreateTextChannel(name string, parentId string) (*
 }
 
 func (l *GuildDiscordSession) CreateCategoryChannel(name string) (*discordgo.Channel, error) {
+	log.Printf("Creating category channel %s", name)
 	return l.session.GuildChannelCreate(l.guildID, name, discordgo.ChannelTypeGuildCategory)
 }
 
