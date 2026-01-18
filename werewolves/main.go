@@ -35,7 +35,7 @@ func Setup(injector *do.Injector) (err error) {
 			}},
 
 		Respond: voteKill,
-		Authorizers: []lib.CommandAuthorizer{
+		Authorizers: []lib.Authorizer{
 			authorizors.CharacterExists(lib.ActionOptionKillUser),
 			authorizors.IsAlive,
 			canKill,

@@ -98,8 +98,13 @@ type DiscordSession interface {
 	Message(channelId string, message string) error
 	MessageEmbed(channelId string, embed *discordgo.MessageEmbed) error
 
+	MessageComplex(channelId string, message *discordgo.MessageSend) error
+
 	// Channels gets all channels from the current guild
 	Channels() ([]*discordgo.Channel, error)
+
+	// Channel gets a channel by ID
+	Channel(id string) (*discordgo.Channel, error)
 
 	// CreateTextChannel Creates a text channel, optionally within a category
 	CreateTextChannel(name string, parentId string) (*discordgo.Channel, error)
@@ -178,12 +183,6 @@ func NewGuildDiscordSession(guildId string, session *discordgo.Session, cacheTim
 	}
 }
 
-type GuildDiscordSession struct {
-	session   *discordgo.Session
-	guildID   string
-	roleCache *InteractionCache[[]*discordgo.Role]
-}
-
 func isRestError(err error, code int) bool {
 	if err == nil {
 		return false
@@ -193,6 +192,34 @@ func isRestError(err error, code int) bool {
 		return restErr.Message.Code == code
 	}
 	return false
+}
+
+type GuildDiscordSession struct {
+	session   *discordgo.Session
+	guildID   string
+	roleCache *InteractionCache[[]*discordgo.Role]
+}
+
+func (l *GuildDiscordSession) MessageComplex(channelId string, message *discordgo.MessageSend) error {
+	_, err := l.session.ChannelMessageSendComplex(channelId, message)
+	return err
+}
+
+func (l *GuildDiscordSession) Channel(id string) (*discordgo.Channel, error) {
+	return l.session.Channel(id)
+}
+
+func (l *GuildDiscordSession) channelByName(name string) (*discordgo.Channel, error) {
+	channels, err := l.session.GuildChannels(l.guildID)
+	if err != nil {
+		return nil, err
+	}
+	for _, channel := range channels {
+		if channel.Name == name {
+			return channel, nil
+		}
+	}
+	return nil, nil
 }
 
 func (l *GuildDiscordSession) EnsureTextChannel(name string, parentId string, channelId *string) (*discordgo.Channel, error) {
@@ -209,6 +236,9 @@ func (l *GuildDiscordSession) EnsureTextChannel(name string, parentId string, ch
 			return channel, nil
 		}
 	}
+	if channel, err := l.channelByName(name); err != nil || channel != nil {
+		return channel, err
+	}
 	return l.CreateTextChannel(name, parentId)
 }
 
@@ -220,6 +250,9 @@ func (l *GuildDiscordSession) EnsureCategoryChannel(name string, channelId *stri
 		} else if channel != nil {
 			return channel, nil
 		}
+	}
+	if channel, err := l.channelByName(name); err != nil || channel != nil {
+		return channel, err
 	}
 	return l.CreateCategoryChannel(name)
 }

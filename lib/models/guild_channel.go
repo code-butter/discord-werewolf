@@ -36,6 +36,14 @@ const CatChannelAdmin = "admin"
 const ChannelSeerPrefix = "seer-"
 const ChannelLoversPrefix = "lovers-"
 
+// Top level message actions on config channels
+
+const MessageGameMode = "game-mode"
+const MessageGameMode_BalancedTeams = "balanced-teams"
+const MessageGameMode_BalancedSelect = "balanced-select"
+const MessageGameMode_RandomTeams = "random-teams"
+const MessageGameMode_RandomSelect = "random-select"
+
 type GuildChannel struct {
 	Id       string // Discord ID
 	Name     string

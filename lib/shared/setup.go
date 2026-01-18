@@ -18,7 +18,15 @@ type SetupFunction func(i *do.Injector) error
 
 var InitialChannels []models.GuildChannel
 
+type ChannelSetup struct {
+	IsConfig bool
+	OnCreate func(args *lib.InteractionArgs) error
+}
+
+var ChannelSetups map[string]*ChannelSetup
+
 func init() {
+	const minValues = 1
 	InitialChannels = []models.GuildChannel{
 		{
 			Name:  "Admin",
@@ -84,6 +92,59 @@ func init() {
 			},
 		},
 	}
+	ChannelSetups = map[string]*ChannelSetup{
+		models.ChannelAdminCharacters: {
+			IsConfig: true,
+			OnCreate: func(args *lib.InteractionArgs) error {
+				dbChannel, err := args.ChannelByAppId(models.ChannelAdminCharacters)
+				if err != nil {
+					return errors.Wrap(err, "Could not get admin characters channel from db")
+				}
+				if err = args.Session.ClearChannelMessages(dbChannel.Id); err != nil {
+					return errors.Wrap(err, "could not remove messages from admin characters channel")
+				}
+				err = args.Session.MessageComplex(dbChannel.Id, &discordgo.MessageSend{
+					Content: "Game Mode",
+					Components: []discordgo.MessageComponent{
+						discordgo.ActionsRow{
+							Components: []discordgo.MessageComponent{
+								discordgo.SelectMenu{
+									CustomID:    models.MessageGameMode,
+									Placeholder: "Choose your game mode",
+									Options: []discordgo.SelectMenuOption{
+										{
+											Label:       "Balanced with teams",
+											Value:       models.MessageGameMode_BalancedTeams,
+											Description: "Auto balances with members chosen from selected teams.",
+										},
+										{
+											Label:       "Balanced with manual character select",
+											Value:       models.MessageGameMode_BalancedSelect,
+											Description: "Select your characters and count. Any count mismatch will result in auto balancing.",
+										},
+										{
+											Label:       "Randomized with teams",
+											Value:       models.MessageGameMode_RandomTeams,
+											Description: "Chaos mode with selected teams.",
+										},
+										{
+											Label:       "Randomized with character select",
+											Value:       models.MessageGameMode_RandomSelect,
+											Description: "Select your characters. Players will be assigned randomly.",
+										},
+									},
+								},
+							},
+						},
+					},
+				})
+				if err != nil {
+					return errors.Wrap(err, "Could not send message on admin character channel")
+				}
+				return nil
+			},
+		},
+	}
 }
 
 // SetupInjector is shared between tests and the application
@@ -92,6 +153,7 @@ func SetupInjector() *do.Injector {
 	do.ProvideValue[*lib.GameListeners](injector, lib.NewGameListeners())
 	do.Provide[*lib.GuildSettings](injector, lib.GameSettingsProvider)
 	do.ProvideValue[*lib.CommandRegistrar](injector, lib.NewCommandRegistrar())
+	do.ProvideValue[*lib.SettingActionRegistrar](injector, lib.NewSettingActionRegistrar())
 	return injector
 }
 
@@ -130,7 +192,7 @@ func InitGuild(ia *lib.InteractionArgs) error {
 	}
 
 	////////////////////////////////////////
-	// TODO: REMOVE/MODIFY THIS BEFORE 1.0 RELEASE
+	// Warning: only use this code for debugging when channel creation goes awry. DO NOT USE IN PRODUCTION
 	//discordChannels, err := ia.Session.Channels()
 	//
 	//for _, channel := range discordChannels {
@@ -181,6 +243,7 @@ func InitGuild(ia *lib.InteractionArgs) error {
 		if err != nil {
 			return errors.Wrap(err, "Could not create category channel")
 		}
+
 		if initChannel.AppId == "admin" {
 			if err = ia.Session.RoleChannelPermissions(discordCat.ID, roleMap["Admin"].ID, discordgo.PermissionViewChannel, 0); err != nil {
 				return errors.Wrap(err, "Could not set channel permissions for admin role")
@@ -189,6 +252,7 @@ func InitGuild(ia *lib.InteractionArgs) error {
 				return errors.Wrap(err, "Could not set channel permissions for admin role")
 			}
 		}
+
 		cat.Id = discordCat.ID
 		var catChildren []models.GuildChannel
 		for _, child := range *initChannel.Children {
@@ -225,6 +289,22 @@ func InitGuild(ia *lib.InteractionArgs) error {
 					return errors.Wrap(err, "Could not set Dead channel permissions for channel "+child.Name)
 				}
 			}
+			channelSetup := ChannelSetups[child.AppId]
+			if channelSetup != nil {
+				if channelSetup.IsConfig {
+					const userConfigAllow = discordgo.PermissionViewChannel | discordgo.PermissionReadMessageHistory
+					const userConfigDeny = discordgo.PermissionSendMessages | discordgo.PermissionAddReactions
+					if err = ia.Session.RoleChannelPermissions(discordCat.ID, guild.ID, userConfigAllow, userConfigDeny); err != nil {
+						return errors.Wrap(err, "Could not set channel permissions for guild")
+					}
+				}
+				if channelSetup.OnCreate != nil {
+					if err = channelSetup.OnCreate(ia); err != nil {
+						return errors.Wrap(err, "Could not do oncreate callback for: "+child.AppId)
+					}
+				}
+			}
+
 			childCat.Id = discordChannel.ID
 			catChildren = append(catChildren, *childCat)
 		}

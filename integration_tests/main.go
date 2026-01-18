@@ -21,7 +21,7 @@ func CallInteraction(args *lib.SessionArgs, options testlib.TestInteractionOptio
 		SessionArgs: args,
 		Interaction: interaction,
 	}
-	shared.HandleInteraction(commands, interactionArgs)
+	shared.HandleCommand(commands, interactionArgs)
 }
 
 func StartIntegratedTestGame(memberCount int, playingCount int, callback testlib.TestInitCallback) *lib.SessionArgs {

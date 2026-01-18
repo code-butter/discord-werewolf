@@ -32,6 +32,7 @@ type Interaction interface {
 	RequesterHasRole(roleName string) (bool, error)
 	Requester() *discordgo.User
 	CommandData() discordgo.ApplicationCommandInteractionData
+	MessageComponentData() discordgo.MessageComponentInteractionData
 	ChannelId() string
 }
 
@@ -47,6 +48,10 @@ func NewLiveInteraction(interaction *discordgo.InteractionCreate, session Discor
 type LiveInteraction struct {
 	session     DiscordSession
 	interaction *discordgo.InteractionCreate
+}
+
+func (l LiveInteraction) MessageComponentData() discordgo.MessageComponentInteractionData {
+	return l.interaction.MessageComponentData()
 }
 
 func (l LiveInteraction) ChannelId() string {

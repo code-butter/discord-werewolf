@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2025  Jeremy Nicoll
+Copyright (C) 2025-2026  Jeremy Nicoll
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -102,21 +102,18 @@ func main() {
 	setup.SetupModules(injector)
 
 	commandRegistrar := do.MustInvoke[*lib.CommandRegistrar](injector)
+	configSettingRegistrar := do.MustInvoke[*lib.SettingActionRegistrar](injector)
 
 	discordClient.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		if i.Type == discordgo.InteractionApplicationCommand {
+		switch i.Type {
+		case discordgo.InteractionApplicationCommand:
 			commands := commandRegistrar.GetAllCommands(i.GuildID)
-			session := sessionProvider.GetSession(i.GuildID)
-			interaction := lib.NewLiveInteraction(i, session)
-			args := &lib.InteractionArgs{
-				SessionArgs: &lib.SessionArgs{
-					Session:  session,
-					Injector: injector,
-				},
-				Interaction: interaction,
-				GuildId:     i.GuildID,
-			}
-			shared.HandleInteraction(commands, args)
+			args := getInteractionArgs(injector, sessionProvider, i)
+			shared.HandleCommand(commands, args)
+		case discordgo.InteractionMessageComponent:
+			actions := configSettingRegistrar.GetAll()
+			args := getInteractionArgs(injector, sessionProvider, i)
+			shared.HandleAction(actions, args)
 		}
 	})
 	if err = discordClient.Open(); err != nil {
@@ -150,4 +147,17 @@ func main() {
 	<-ctx.Done()
 	log.Println("Shutting down...")
 	time.Sleep(5 * time.Second)
+}
+
+func getInteractionArgs(injector *do.Injector, sessionProvider lib.DiscordSessionProvider, i *discordgo.InteractionCreate) *lib.InteractionArgs {
+	session := sessionProvider.GetSession(i.GuildID)
+	interaction := lib.NewLiveInteraction(i, session)
+	return &lib.InteractionArgs{
+		SessionArgs: &lib.SessionArgs{
+			Session:  session,
+			Injector: injector,
+		},
+		Interaction: interaction,
+		GuildId:     i.GuildID,
+	}
 }

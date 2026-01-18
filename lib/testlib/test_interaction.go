@@ -28,6 +28,11 @@ type TestInteraction struct {
 	channelId   string
 }
 
+func (d *TestInteraction) MessageComponentData() discordgo.discordgo {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (d *TestInteraction) ChannelId() string {
 	return d.channelId
 }

@@ -15,6 +15,7 @@ import (
 func Setup(injector *do.Injector) error {
 	cr := do.MustInvoke[*lib.CommandRegistrar](injector)
 	l := do.MustInvoke[*lib.GameListeners](injector)
+	sar := do.MustInvoke[*lib.SettingActionRegistrar](injector)
 
 	l.NightStart.Add(nightListener)
 	l.CharacterDeath.Add(checkWinConditions)
@@ -22,10 +23,10 @@ func Setup(injector *do.Injector) error {
 	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        lib.ActionInit,
-			Description: "Initializes the server. Wipes out any data previously stored.",
+			Description: "Ensures that all required roles, channels, database records, and user interfaces are present.",
 		},
 		Respond:     shared.InitGuild,
-		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
+		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -72,7 +73,7 @@ func Setup(injector *do.Injector) error {
 		},
 
 		Respond:     getTimeZones,
-		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
+		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -90,7 +91,7 @@ func Setup(injector *do.Injector) error {
 		},
 
 		Respond:     setTimeZone,
-		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
+		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -117,7 +118,7 @@ func Setup(injector *do.Injector) error {
 		},
 
 		Respond:     shared.StartGame,
-		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
+		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -126,7 +127,7 @@ func Setup(injector *do.Injector) error {
 			Description: "Ends the game.",
 		},
 		Respond:     shared.EndGameInteraction,
-		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
+		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -136,7 +137,7 @@ func Setup(injector *do.Injector) error {
 		},
 
 		Respond:     triggerDay,
-		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
+		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -146,7 +147,7 @@ func Setup(injector *do.Injector) error {
 		},
 
 		Respond:     triggerNight,
-		Authorizers: []lib.CommandAuthorizer{authorizors.IsAdmin},
+		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
 	cr.RegisterGlobal(lib.Command{
@@ -164,7 +165,7 @@ func Setup(injector *do.Injector) error {
 		},
 
 		Respond: voteFor,
-		Authorizers: []lib.CommandAuthorizer{
+		Authorizers: []lib.Authorizer{
 			authorizors.CharacterExists(lib.ActionOptionVoteUser),
 			authorizors.IsAlive,
 			canVote,
@@ -194,6 +195,12 @@ func Setup(injector *do.Injector) error {
 			Description: "List votes for each player",
 		},
 		Respond: showVotersFor,
+	})
+
+	sar.Register(lib.SettingAction{
+		Name:        models.MessageGameMode,
+		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
+		Respond:     changeGameMode,
 	})
 
 	return nil

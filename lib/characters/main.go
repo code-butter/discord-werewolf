@@ -1,31 +1,31 @@
 package characters
 
-var TeamVillager = "villagers"
-var TeamWerewolf = "werewolves"
-var TeamVampire = "vampires"
-var TeamChaos = "chaos"
+const TeamVillager = "villagers"
+const TeamWerewolf = "werewolves"
+const TeamVampire = "vampires"
+const TeamChaos = "chaos"
 
-var Werewolf = "werewolf"
-var WerewolfCub = "werewolf-cub"
-var Villager = "villager"
-var KingVampire = "king-vampire"
-var Witch = "witch"
-var Bodyguard = "bodyguard"
-var Seer = "seer"
-var Fool = "fool"
-var ApprenticeSeer = "apprentice-seer"
-var Mason = "mason"
-var Baker = "baker"
-var Hunter = "hunter"
-var Monarch = "monarch"
-var Lycan = "lycan"
-var Granny = "granny"
-var Mutated = "mutated"
-var ChaosDemon = "chaos-demon"
-var Cupid = "cupid"
+const Werewolf = "werewolf"
+const WerewolfCub = "werewolf-cub"
+const Villager = "villager"
+const KingVampire = "king-vampire"
+const Witch = "witch"
+const Bodyguard = "bodyguard"
+const Seer = "seer"
+const Fool = "fool"
+const ApprenticeSeer = "apprentice-seer"
+const Mason = "mason"
+const Baker = "baker"
+const Hunter = "hunter"
+const Monarch = "monarch"
+const Lycan = "lycan"
+const Granny = "granny"
+const Mutated = "mutated"
+const ChaosDemon = "chaos-demon"
+const Cupid = "cupid"
 
-var SecondaryVampire = "vampire"
-var SecondaryHenchman = "henchman"
+const SecondaryVampire = "vampire"
+const SecondaryHenchman = "henchman"
 
 var Teams = map[string]Team{
 	TeamWerewolf: {
@@ -187,7 +187,7 @@ var Characters = map[string]Character{
 		TeamId:      TeamChaos,
 		GameScore:   -3,
 		Label:       "Chaos Demon",
-		Description: "Chooses a victim to hang. Only wins if the victim dies by hanging.",
+		Description: "Chooses a victim to hang. Only wins if the victim dies by hanging, dies if the victim dies any other way.",
 	},
 	Cupid: {
 		Id:          Cupid,

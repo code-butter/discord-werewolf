@@ -68,6 +68,16 @@ type TestSession struct {
 	Members       []*discordgo.Member
 }
 
+func (t *TestSession) MessageComplex(channelId string, *discordgo.MessageSend) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t *TestSession) Channel(id string) (*discordgo.Channel, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (t *TestSession) EnsureTextChannel(name string, parentId string, channelId *string) (*discordgo.Channel, error) {
 	return t.CreateTextChannel(name, parentId)
 }

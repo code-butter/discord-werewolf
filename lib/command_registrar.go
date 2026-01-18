@@ -17,10 +17,10 @@ func NewCommandRegistrar() *CommandRegistrar {
 type Command struct {
 	*discordgo.ApplicationCommand
 	Respond     InteractionAction
-	Authorizers []CommandAuthorizer
+	Authorizers []Authorizer
 }
 
-type CommandAuthorizer func(ia *InteractionArgs) error
+type Authorizer func(ia *InteractionArgs) error
 
 func (cr *CommandRegistrar) RegisterGlobal(c Command) {
 	if _, ok := cr.global[c.Name]; ok {
@@ -42,7 +42,6 @@ func (cr *CommandRegistrar) RegisterGuild(guildId string, c Command) {
 	guildSet[c.Name] = c
 }
 
-// TODO: cache the results here so we're not looping in hot paths
 func (cr *CommandRegistrar) GetAllCommands(guildId string) map[string]Command {
 	allCommands := cr.global
 	guildSet := cr.getGuildSet(guildId)
