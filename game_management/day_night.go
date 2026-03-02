@@ -155,13 +155,13 @@ func nightListener(s *lib.SessionArgs, data lib.NightStartData) error {
 	}
 	var voted string
 	result = gormDB.
-		Model(&models.GuildVote{}).
-		Select("voting_for_id").
-		Group("voting_for_id").
+		Model(&models.CharacterAction{}).
+		Select("target_id").
+		Group("target_id").
 		Order("COUNT(*) DESC").
-		Where("guild_id = ?", data.Guild.Id).
+		Where("guild_id = ? AND action = ?", data.Guild.Id, DbActionLynch).
 		Limit(1).
-		Pluck("voting_for_id", &voted)
+		Pluck("target_id", &voted)
 	if result.Error != nil {
 		msg := fmt.Sprintf("Could not get votes for guild %s with ID %s", data.Guild.Name, data.Guild.Id)
 		return errors.Wrap(result.Error, msg)
@@ -191,6 +191,6 @@ func nightListener(s *lib.SessionArgs, data lib.NightStartData) error {
 		}
 		return shared.KillCharacter(s, character, "hanged")
 	}
-	_, err = gorm.G[models.GuildVote](gormDB).Where("guild_id = ?", data.Guild.Id).Delete(ctx)
+	_, err = gorm.G[models.CharacterAction](gormDB).Where("guild_id = ? AND action = ?", data.Guild.Id, DbActionLynch).Delete(ctx)
 	return err
 }

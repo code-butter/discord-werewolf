@@ -49,6 +49,7 @@ var Teams = map[string]Team{
 var FakeVillagerIds = []string{
 	Baker, Hunter, Villager, ApprenticeSeer,
 }
+
 var Characters = map[string]Character{
 	Villager: {
 		Id:          Villager,

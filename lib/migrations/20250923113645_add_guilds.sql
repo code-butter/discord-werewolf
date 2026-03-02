@@ -5,7 +5,6 @@ CREATE TABLE guilds (
     name            VARCHAR(100),
     channels        TEXT,                       -- json
     game_going      INTEGER DEFAULT 0,          -- bool
-    game_mode       INTEGER DEFAULT 0,
     day_night       INTEGER DEFAULT 0,          -- bool
     paused          INTEGER DEFAULT 0,          -- bool
     time_zone       VARCHAR(50) DEFAULT '',

@@ -11,6 +11,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var DbActionLynch = "lynch"
+
 func canVote(ia *lib.InteractionArgs) error {
 	guild, err := ia.AppGuild()
 	if err != nil {
@@ -35,8 +37,8 @@ func voteFor(ia *lib.InteractionArgs) error {
 	ctx := do.MustInvoke[context.Context](ia.Injector)
 
 	if voteForId == "" {
-		_, err := gorm.G[models.GuildVote](gormDB).
-			Where("guild_id = ? AND user_id = ?", guildId, userId).
+		_, err := gorm.G[models.CharacterAction](gormDB).
+			Where("guild_id = ? AND user_id = ? AND action = ?", guildId, userId, DbActionLynch).
 			Delete(ctx)
 		if err != nil {
 			return err
@@ -47,16 +49,17 @@ func voteFor(ia *lib.InteractionArgs) error {
 
 	// TODO: introduce logic for double voting
 
-	gvdb := gorm.G[models.GuildVote](gormDB)
+	gvdb := gorm.G[models.CharacterAction](gormDB)
 	_, err := gvdb.
-		Where("guild_id = ? AND user_id = ?", guildId, userId).
+		Where("guild_id = ? AND user_id = ? AND action = ?", guildId, userId, DbActionLynch).
 		First(ctx)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			vote := models.GuildVote{
-				GuildId:     guildId,
-				UserId:      userId,
-				VotingForId: voteForId,
+			vote := models.CharacterAction{
+				GuildId:  guildId,
+				UserId:   userId,
+				TargetId: voteForId,
+				Action:   DbActionLynch,
 			}
 			if err = gvdb.Create(ctx, &vote); err != nil {
 				return err
@@ -66,13 +69,13 @@ func voteFor(ia *lib.InteractionArgs) error {
 		}
 	} else {
 		rows, err := gvdb.
-			Where("guild_id = ? AND user_id = ?", guildId, userId).
+			Where("guild_id = ? AND user_id = ? AND action = ?", guildId, userId, DbActionLynch).
 			Update(ctx, "voting_for_id", voteForId)
-		if rows != 1 {
-			return errors.New("Invalid number of votes cast")
-		}
 		if err != nil {
 			return err
+		}
+		if rows != 1 {
+			return errors.New("Invalid number of votes cast")
 		}
 	}
 

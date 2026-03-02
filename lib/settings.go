@@ -2,13 +2,12 @@ package lib
 
 import (
 	"context"
-	"fmt"
+	"discord-werewolf/lib/models"
 	"regexp"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/samber/do"
-	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -37,74 +36,65 @@ func GameSettingsProvider(i *do.Injector) (*GuildSettings, error) {
 	return &GuildSettings{db: db, ctx: ctx, clock: clock}, nil
 }
 
-func (gs *GuildSettings) guildRow(guildId string) *gorm.DB {
-	// TODO: convert to the generics interface since it supports context cancellation
-	return gs.db.Table("guilds").Where("id = ?", guildId)
+func (gs *GuildSettings) guildRow(ctx context.Context, guildId string) *gorm.DB {
+	return gs.db.WithContext(ctx).Table("guilds").Where("id = ?", guildId)
 }
 
-func (gs *GuildSettings) updateJsonValue(guildId string, name string, value string) error {
-	row := gs.guildRow(guildId)
-	fieldName := fmt.Sprintf("{%s}", name)
-	result := row.UpdateColumn("game_settings", datatypes.JSONSet(name).Set(fieldName, value))
-	return result.Error
-}
-
-func (gs *GuildSettings) StartGame(guildId string) error {
-	result := gs.guildRow(guildId).UpdateColumns(map[string]interface{}{
+func (gs *GuildSettings) StartGame(ctx context.Context, guildId string) error {
+	result := gs.guildRow(ctx, guildId).UpdateColumns(map[string]interface{}{
 		"game_going":     1,
 		"day_night":      0,
 		"paused":         0,
 		"last_cycle_ran": gs.clock.Now().UTC().Format(time.DateTime),
 	})
-	// TODO implement next_game_settings and copy settings to game_settings
 	return result.Error
 }
 
-func (gs *GuildSettings) PauseGame(guildId string) error {
-	result := gs.guildRow(guildId).Update("paused", 1)
+func (gs *GuildSettings) PauseGame(ctx context.Context, guildId string) error {
+	result := gs.guildRow(ctx, guildId).Update("paused", 1)
 	return result.Error
 }
 
-func (gs *GuildSettings) ResumeGame(guildId string) error {
-	result := gs.guildRow(guildId).Update("paused", 0)
+func (gs *GuildSettings) ResumeGame(ctx context.Context, guildId string) error {
+	result := gs.guildRow(ctx, guildId).Update("paused", 0)
 	return result.Error
 }
 
-func (gs *GuildSettings) EndGame(guildId string) error {
-	result := gs.guildRow(guildId).Update("game_going", 0)
+func (gs *GuildSettings) EndGame(ctx context.Context, guildId string) error {
+	result := gs.guildRow(ctx, guildId).Update("game_going", 0)
 	return result.Error
 }
 
-func (gs *GuildSettings) SetDayTime(guildId string, time string) error {
+func (gs *GuildSettings) SetDayTime(ctx context.Context, guildId string, time string) error {
 	if !timeFormat.MatchString(time) {
 		return errors.New("invalid time format (needs HH:MM)")
 	}
-	result := gs.guildRow(guildId).Update("day_time", time+":00")
+	result := gs.guildRow(ctx, guildId).Update("day_time", time+":00")
 	return result.Error
 }
 
-func (gs *GuildSettings) SetNightTime(guildId string, time string) error {
+func (gs *GuildSettings) SetNightTime(ctx context.Context, guildId string, time string) error {
 	if !timeFormat.MatchString(time) {
 		return errors.New("invalid time format (needs HH:MM)")
 	}
-	result := gs.guildRow(guildId).Update("night_time", time+":00")
+	result := gs.guildRow(ctx, guildId).Update("night_time", time+":00")
 	return result.Error
 }
 
-func (gs *GuildSettings) SetTimeZone(guildId string, tz string) error {
+func (gs *GuildSettings) SetTimeZone(ctx context.Context, guildId string, tz string) error {
 	if tz != "" {
 		_, err := time.LoadLocation(tz)
 		if err != nil {
 			return err
 		}
 	}
-	result := gs.guildRow(guildId).Update("time_zone", tz)
+	result := gs.guildRow(ctx, guildId).Update("time_zone", tz)
 	return result.Error
 }
 
-func (gs *GuildSettings) GetTimeZone(guildId string) (*time.Location, error) {
+func (gs *GuildSettings) GetTimeZone(ctx context.Context, guildId string) (*time.Location, error) {
 	var tzName string
-	result := gs.guildRow(guildId).Pluck("time_zone", &tzName)
+	result := gs.guildRow(ctx, guildId).Pluck("time_zone", &tzName)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -114,7 +104,12 @@ func (gs *GuildSettings) GetTimeZone(guildId string) (*time.Location, error) {
 	return time.LoadLocation(tzName)
 }
 
-func (gs *GuildSettings) SetDayNight(guildId string, isDay bool) error {
-	result := gs.guildRow(guildId).Update("day_night", isDay)
+func (gs *GuildSettings) SetDayNight(ctx context.Context, guildId string, isDay bool) error {
+	result := gs.guildRow(ctx, guildId).Update("day_night", isDay)
+	return result.Error
+}
+
+func (gs *GuildSettings) UpdateSettings(ctx context.Context, guildId string, settings models.GameSettings) error {
+	result := gs.guildRow(ctx, guildId).Update("game_settings", settings)
 	return result.Error
 }

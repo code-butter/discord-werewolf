@@ -28,7 +28,12 @@ type TestInteraction struct {
 	channelId   string
 }
 
-func (d *TestInteraction) MessageComponentData() discordgo.discordgo {
+func (d *TestInteraction) SilentResponse() error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *TestInteraction) MessageComponentData() discordgo.MessageComponentInteractionData {
 	//TODO implement me
 	panic("implement me")
 }

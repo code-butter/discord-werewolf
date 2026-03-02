@@ -68,7 +68,21 @@ type TestSession struct {
 	Members       []*discordgo.Member
 }
 
-func (t *TestSession) MessageComplex(channelId string, *discordgo.MessageSend) error {
+func (t *TestSession) MessageComplex(channelId string, message *discordgo.MessageSend) error {
+	return nil
+}
+
+func (t *TestSession) ClearChannelMessagesUnless(channelId string, callback func(*discordgo.Message) (bool, error)) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t *TestSession) FollowupMessage(interaction *discordgo.Interaction, params *discordgo.WebhookParams) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t *TestSession) CommandData() discordgo.ApplicationCommandInteractionData {
 	//TODO implement me
 	panic("implement me")
 }
@@ -250,10 +264,6 @@ func (t *TestSession) GuildMembersWithRole(roleName string) ([]*discordgo.Member
 }
 
 func (t *TestSession) InteractionRespond(interaction *discordgo.Interaction, response *discordgo.InteractionResponse) error {
-	return nil
-}
-
-func (t *TestSession) FollowupMessage(interaction *discordgo.Interaction, params *discordgo.WebhookParams) error {
 	return nil
 }
 

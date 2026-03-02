@@ -1,6 +1,7 @@
 package game_management
 
 import (
+	"context"
 	"discord-werewolf/lib"
 	"discord-werewolf/lib/testlib"
 	"testing"
@@ -27,11 +28,12 @@ func TestSystemAutoStarts(t *testing.T) {
 
 	listeners := do.MustInvoke[*lib.GameListeners](args.Injector)
 	settings := do.MustInvoke[*lib.GuildSettings](args.Injector)
+	ctx := do.MustInvoke[context.Context](args.Injector)
 
-	if err := settings.SetDayTime(guildId, "09:00"); err != nil {
+	if err := settings.SetDayTime(ctx, guildId, "09:00"); err != nil {
 		t.Fatal(err)
 	}
-	if err := settings.SetNightTime(guildId, "15:00"); err != nil {
+	if err := settings.SetNightTime(ctx, guildId, "15:00"); err != nil {
 		t.Fatal(err)
 	}
 

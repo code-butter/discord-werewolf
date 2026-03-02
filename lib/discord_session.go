@@ -119,7 +119,10 @@ type DiscordSession interface {
 	EnsureCategoryChannel(name string, channelId *string) (*discordgo.Channel, error)
 
 	// ClearChannelMessages removes all messages from a channel
-	ClearChannelMessages(id string) error
+	ClearChannelMessages(channelId string) error
+
+	// ClearChannelMessagesUnless removes all messages from a channel unless the callback returns true
+	ClearChannelMessagesUnless(channelId string, callback func(*discordgo.Message) (bool, error)) error
 
 	// GetRoles get all current roles for the guild.
 	GetRoles() ([]*discordgo.Role, error)
@@ -198,6 +201,51 @@ type GuildDiscordSession struct {
 	session   *discordgo.Session
 	guildID   string
 	roleCache *InteractionCache[[]*discordgo.Role]
+}
+
+func (l *GuildDiscordSession) ClearChannelMessagesUnless(channelId string, callback func(*discordgo.Message) (bool, error)) error {
+	const maxMessages = 100
+	const fourteenDays = 14 * 24 * time.Hour
+	var before string
+	for {
+		messages, err := l.session.ChannelMessages(channelId, maxMessages, before, "", "")
+		if err != nil {
+			return err
+		}
+		if len(messages) == 0 {
+			return nil
+		}
+		var bulkDelete []string
+		for _, message := range messages {
+			if callback != nil {
+				keep, err := callback(message)
+				if err != nil {
+					return err
+				}
+				if keep {
+					continue
+				}
+			}
+			if time.Since(message.Timestamp) < fourteenDays {
+				bulkDelete = append(bulkDelete, message.ID)
+			} else {
+				if err = l.session.ChannelMessageDelete(message.ChannelID, message.ID); err != nil {
+					return err
+				}
+			}
+		}
+		toDeleteCount := len(bulkDelete)
+		if toDeleteCount > 1 {
+			if err = l.session.ChannelMessagesBulkDelete(channelId, bulkDelete); err != nil {
+				return err
+			}
+		} else if toDeleteCount == 1 {
+			if err = l.session.ChannelMessageDelete(channelId, bulkDelete[0]); err != nil {
+				return err
+			}
+		}
+		before = messages[len(messages)-1].ID
+	}
 }
 
 func (l *GuildDiscordSession) MessageComplex(channelId string, message *discordgo.MessageSend) error {
@@ -286,39 +334,7 @@ func (l *GuildDiscordSession) UserChannelPermissions(channelId string, roleId st
 }
 
 func (l *GuildDiscordSession) ClearChannelMessages(channelId string) error {
-	const maxMessages = 100
-	const fourteenDays = 14 * 24 * time.Hour
-	var before string
-	for {
-		messages, err := l.session.ChannelMessages(channelId, maxMessages, before, "", "")
-		if err != nil {
-			return err
-		}
-		if len(messages) == 0 {
-			return nil
-		}
-		var bulkDelete []string
-		for _, message := range messages {
-			if time.Since(message.Timestamp) < fourteenDays {
-				bulkDelete = append(bulkDelete, message.ID)
-			} else {
-				if err = l.session.ChannelMessageDelete(message.ChannelID, message.ID); err != nil {
-					return err
-				}
-			}
-		}
-		toDeleteCount := len(bulkDelete)
-		if toDeleteCount > 1 {
-			if err = l.session.ChannelMessagesBulkDelete(channelId, bulkDelete); err != nil {
-				return err
-			}
-		} else if toDeleteCount == 1 {
-			if err = l.session.ChannelMessageDelete(channelId, bulkDelete[0]); err != nil {
-				return err
-			}
-		}
-		before = messages[len(messages)-1].ID
-	}
+	return l.ClearChannelMessagesUnless(channelId, nil)
 }
 
 func (l *GuildDiscordSession) InteractionRespond(interaction *discordgo.Interaction, response *discordgo.InteractionResponse) error {

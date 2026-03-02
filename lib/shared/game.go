@@ -51,7 +51,7 @@ func StartGame(ia *lib.InteractionArgs) error {
 		return result.Error
 	}
 
-	if result = gormDB.Where("guild_id = ?", ia.Interaction.GuildId()).Delete(&models.GuildVote{}); result.Error != nil {
+	if result = gormDB.Where("guild_id = ?", ia.Interaction.GuildId()).Delete(&models.CharacterAction{}); result.Error != nil {
 		return result.Error
 	}
 
@@ -111,7 +111,7 @@ func StartGame(ia *lib.InteractionArgs) error {
 		}
 	}
 
-	if err = settings.StartGame(guild.Id); err != nil {
+	if err = settings.StartGame(ctx, guild.Id); err != nil {
 		return err
 	}
 

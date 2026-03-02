@@ -6,6 +6,7 @@ import (
 	"discord-werewolf/lib/models"
 	"discord-werewolf/lib/shared"
 	"discord-werewolf/lib/testlib"
+	"discord-werewolf/werewolves"
 	"testing"
 
 	"github.com/bwmarrin/discordgo"
@@ -113,9 +114,9 @@ func TestWerewolfGameEnd(t *testing.T) {
 			t.Fatal(err)
 		}
 		var wolfVoteCount int
-		result := db.Table("werewolf_kill_votes").
+		result := db.Table("character_actions").
 			Select("COUNT(guild_id) as count").
-			Where("guild_id = ?", guild.Id).
+			Where("guild_id = ? AND action = ?", guild.Id, werewolves.DbActionKill).
 			Pluck("count", &wolfVoteCount)
 		if result.Error != nil {
 			t.Fatal(result.Error)

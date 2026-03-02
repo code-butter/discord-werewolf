@@ -14,6 +14,7 @@ type InteractionAction func(*InteractionArgs) error
 
 type Interaction interface {
 	// DeferredResponse Call this when potentially taking a long time to respond
+	SilentResponse() error
 	DeferredResponse(msg string, ephemeral bool) error
 
 	// FollowupMessage Call this after doing potentially long operation
@@ -48,6 +49,12 @@ func NewLiveInteraction(interaction *discordgo.InteractionCreate, session Discor
 type LiveInteraction struct {
 	session     DiscordSession
 	interaction *discordgo.InteractionCreate
+}
+
+func (l LiveInteraction) SilentResponse() error {
+	return l.session.InteractionRespond(l.interaction.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredMessageUpdate,
+	})
 }
 
 func (l LiveInteraction) MessageComponentData() discordgo.MessageComponentInteractionData {

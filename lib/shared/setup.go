@@ -226,6 +226,8 @@ func InitGuild(ia *lib.InteractionArgs) error {
 		roleMap[role.Name] = role
 	}
 
+	var onCreates []func(args *lib.InteractionArgs) error
+
 	saveChannels := models.GuildChannels{}
 	for _, initChannel := range InitialChannels {
 		var cat *models.GuildChannel
@@ -299,9 +301,7 @@ func InitGuild(ia *lib.InteractionArgs) error {
 					}
 				}
 				if channelSetup.OnCreate != nil {
-					if err = channelSetup.OnCreate(ia); err != nil {
-						return errors.Wrap(err, "Could not do oncreate callback for: "+child.AppId)
-					}
+					onCreates = append(onCreates, channelSetup.OnCreate)
 				}
 			}
 
@@ -322,5 +322,10 @@ func InitGuild(ia *lib.InteractionArgs) error {
 		return errors.Wrap(result.Error, "Could not update guild record")
 	}
 
+	for _, onCreate := range onCreates {
+		if err = onCreate(ia); err != nil {
+			return errors.Wrap(err, "Could not do oncreate callback")
+		}
+	}
 	return nil
 }

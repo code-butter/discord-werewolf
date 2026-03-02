@@ -1,6 +1,7 @@
 package game_management
 
 import (
+	"context"
 	"discord-werewolf/lib"
 	"fmt"
 	"regexp"
@@ -34,8 +35,9 @@ func getTimeZones(ia *lib.InteractionArgs) error {
 
 func setTimeZone(ia *lib.InteractionArgs) error {
 	settings := do.MustInvoke[*lib.GuildSettings](ia.Injector)
+	ctx := do.MustInvoke[context.Context](ia.Injector)
 	tzName := ia.Interaction.CommandData().GetOption("timezone").Value.(string)
-	if err := settings.SetTimeZone(ia.Interaction.GuildId(), tzName); err != nil {
+	if err := settings.SetTimeZone(ctx, ia.Interaction.GuildId(), tzName); err != nil {
 		_ = ia.Interaction.Respond("Unable to set timezone", true)
 		return err
 	}

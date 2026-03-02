@@ -103,13 +103,13 @@ func getVotersMap(ia *lib.InteractionArgs) (map[string][]string, error) {
 	db := do.MustInvoke[*gorm.DB](ia.Injector)
 	ctx := do.MustInvoke[context.Context](ia.Injector)
 
-	votes, err := gorm.G[models.GuildVote](db).Where("guild_id = ?", ia.GuildId).Find(ctx)
+	votes, err := gorm.G[models.CharacterAction](db).Where("guild_id = ? AND action = ?", ia.GuildId, DbActionLynch).Find(ctx)
 	if err != nil {
 		return nil, err
 	}
 	voteMap := make(map[string][]string)
 	for _, vote := range votes {
-		voteMap[vote.VotingForId] = append(voteMap[vote.VotingForId], vote.UserId)
+		voteMap[vote.TargetId] = append(voteMap[vote.TargetId], vote.UserId)
 	}
 	return voteMap, nil
 }
