@@ -28,6 +28,16 @@ type TestInteraction struct {
 	channelId   string
 }
 
+func (d *TestInteraction) FollowupMessageEdit(webhookParams *discordgo.WebhookParams) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *TestInteraction) InteractionRespond(*discordgo.InteractionResponse) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (d *TestInteraction) SilentResponse() error {
 	//TODO implement me
 	panic("implement me")

@@ -101,8 +101,9 @@ func main() {
 
 	setup.SetupModules(injector)
 
-	commandRegistrar := do.MustInvoke[*lib.CommandRegistrar](injector)
-	configSettingRegistrar := do.MustInvoke[*lib.SettingActionRegistrar](injector)
+	commandRegistrar := do.MustInvoke[*lib.CommandRegistry](injector)
+	actionsRegistry := do.MustInvokeNamed[*lib.ResponderRegistry](injector, lib.ActionsResponder)
+	modalRegistry := do.MustInvokeNamed[*lib.ResponderRegistry](injector, lib.ModalResponder)
 
 	discordClient.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		switch i.Type {
@@ -111,9 +112,13 @@ func main() {
 			args := getInteractionArgs(injector, sessionProvider, i)
 			shared.HandleCommand(commands, args)
 		case discordgo.InteractionMessageComponent:
-			actions := configSettingRegistrar.GetAll()
+			actions := actionsRegistry.GetAll()
 			args := getInteractionArgs(injector, sessionProvider, i)
 			shared.HandleAction(actions, args)
+		case discordgo.InteractionModalSubmit:
+			actions := modalRegistry.GetAll()
+			args := getInteractionArgs(injector, sessionProvider, i)
+			shared.HandleModal(actions, args)
 		}
 	})
 	if err = discordClient.Open(); err != nil {
@@ -121,7 +126,7 @@ func main() {
 	}
 	defer discordClient.Close()
 
-	// TODO: move this to an "upgrade" subcommand
+	// TODO: move this to an "upgrade" subcommand ?
 	globalCommands := make([]*discordgo.ApplicationCommand, 0)
 	for _, cmd := range commandRegistrar.GetGlobalCommands() {
 		globalCommands = append(globalCommands, cmd.ApplicationCommand)
@@ -146,7 +151,7 @@ func main() {
 	log.Println("Bot is now running.  Press CTRL-C to exit.")
 	<-ctx.Done()
 	log.Println("Shutting down...")
-	time.Sleep(5 * time.Second)
+	time.Sleep(1 * time.Second)
 }
 
 func getInteractionArgs(injector *do.Injector, sessionProvider lib.DiscordSessionProvider, i *discordgo.InteractionCreate) *lib.InteractionArgs {

@@ -2,13 +2,13 @@ package lib
 
 import "github.com/bwmarrin/discordgo"
 
-type CommandRegistrar struct {
+type CommandRegistry struct {
 	global map[string]Command
 	guild  *MapLock[map[string]Command]
 }
 
-func NewCommandRegistrar() *CommandRegistrar {
-	return &CommandRegistrar{
+func NewCommandRegistrar() *CommandRegistry {
+	return &CommandRegistry{
 		global: make(map[string]Command),
 		guild:  NewMapLock[map[string]Command](),
 	}
@@ -22,14 +22,14 @@ type Command struct {
 
 type Authorizer func(ia *InteractionArgs) error
 
-func (cr *CommandRegistrar) RegisterGlobal(c Command) {
+func (cr *CommandRegistry) RegisterGlobal(c Command) {
 	if _, ok := cr.global[c.Name]; ok {
 		panic("Global command already registered: " + c.Name)
 	}
 	cr.global[c.Name] = c
 }
 
-func (cr *CommandRegistrar) getGuildSet(guildId string) map[string]Command {
+func (cr *CommandRegistry) getGuildSet(guildId string) map[string]Command {
 	guildSet, _ := cr.guild.GetOrSet(guildId, func() (map[string]Command, error) {
 		return map[string]Command{}, nil
 	})
@@ -37,12 +37,12 @@ func (cr *CommandRegistrar) getGuildSet(guildId string) map[string]Command {
 }
 
 // TODO: make sure this is refreshed on server restarts
-func (cr *CommandRegistrar) RegisterGuild(guildId string, c Command) {
+func (cr *CommandRegistry) RegisterGuild(guildId string, c Command) {
 	guildSet := cr.getGuildSet(guildId)
 	guildSet[c.Name] = c
 }
 
-func (cr *CommandRegistrar) GetAllCommands(guildId string) map[string]Command {
+func (cr *CommandRegistry) GetAllCommands(guildId string) map[string]Command {
 	allCommands := cr.global
 	guildSet := cr.getGuildSet(guildId)
 	for name, cmd := range guildSet {
@@ -51,6 +51,6 @@ func (cr *CommandRegistrar) GetAllCommands(guildId string) map[string]Command {
 	return allCommands
 }
 
-func (cr *CommandRegistrar) GetGlobalCommands() map[string]Command {
+func (cr *CommandRegistry) GetGlobalCommands() map[string]Command {
 	return cr.global
 }

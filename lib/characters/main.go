@@ -215,3 +215,11 @@ var SecondaryCharacters = map[string]SecondaryCharacter{
 		WinCount:    false,
 	},
 }
+
+func init() {
+	for _, c := range Characters {
+		team := Teams[c.TeamId]
+		team.Characters = append(team.Characters, c)
+		Teams[c.TeamId] = team
+	}
+}

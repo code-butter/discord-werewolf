@@ -13,14 +13,15 @@ import (
 )
 
 func Setup(injector *do.Injector) error {
-	cr := do.MustInvoke[*lib.CommandRegistrar](injector)
-	l := do.MustInvoke[*lib.GameListeners](injector)
-	sar := do.MustInvoke[*lib.SettingActionRegistrar](injector)
+	commandRegistry := do.MustInvoke[*lib.CommandRegistry](injector)
+	listeners := do.MustInvoke[*lib.GameListeners](injector)
+	actionsRegistry := do.MustInvokeNamed[*lib.ResponderRegistry](injector, lib.ActionsResponder)
+	modalRegistry := do.MustInvokeNamed[*lib.ResponderRegistry](injector, lib.ModalResponder)
 
-	l.NightStart.Add(nightListener)
-	l.CharacterDeath.Add(checkWinConditions)
+	listeners.NightStart.Add(nightListener)
+	listeners.CharacterDeath.Add(checkWinConditions)
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        lib.ActionInit,
 			Description: "Ensures that all required roles, channels, database records, and user interfaces are present.",
@@ -29,7 +30,7 @@ func Setup(injector *do.Injector) error {
 		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "ping",
 			Description: "Pings the server. Responds with 'pong'.",
@@ -57,7 +58,7 @@ func Setup(injector *do.Injector) error {
 		})
 	}
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "get_timezones",
 			Description: "Get timezones for the server.",
@@ -76,7 +77,7 @@ func Setup(injector *do.Injector) error {
 		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "set_timezone",
 			Description: "Sets the timezone for the server.",
@@ -94,7 +95,7 @@ func Setup(injector *do.Injector) error {
 		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        lib.ActionPlaying,
 			Description: "Signs you up for the next round.",
@@ -102,7 +103,7 @@ func Setup(injector *do.Injector) error {
 		Respond: playing,
 	})
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        lib.ActionStopPlaying,
 			Description: "Removes you from playing next round.",
@@ -111,7 +112,7 @@ func Setup(injector *do.Injector) error {
 		Respond: stopPlaying,
 	})
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        lib.ActionStartGame,
 			Description: "Starts the game.",
@@ -121,7 +122,7 @@ func Setup(injector *do.Injector) error {
 		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        lib.ActionEndGame,
 			Description: "Ends the game.",
@@ -130,7 +131,7 @@ func Setup(injector *do.Injector) error {
 		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        "day_time",
 			Description: "Triggers day for the current game",
@@ -140,7 +141,7 @@ func Setup(injector *do.Injector) error {
 		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        lib.ActionNightTime,
 			Description: "Triggers night for the current game",
@@ -150,7 +151,7 @@ func Setup(injector *do.Injector) error {
 		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 	})
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        lib.ActionVote,
 			Description: "Vote to hang. Leave off the target if you wish to unvote.",
@@ -173,7 +174,7 @@ func Setup(injector *do.Injector) error {
 		},
 	})
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        lib.ActionWhoIsAlive,
 			Description: "List who is alive and/or playing",
@@ -181,7 +182,7 @@ func Setup(injector *do.Injector) error {
 		Respond: whoIsAlive,
 	})
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        lib.ActionShowVotesFor,
 			Description: "List number of votes for each player",
@@ -189,7 +190,7 @@ func Setup(injector *do.Injector) error {
 		Respond: showVotesFor,
 	})
 
-	cr.RegisterGlobal(lib.Command{
+	commandRegistry.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
 			Name:        lib.ActionShowVotersFor,
 			Description: "List votes for each player",
@@ -197,10 +198,34 @@ func Setup(injector *do.Injector) error {
 		Respond: showVotersFor,
 	})
 
-	sar.Register(lib.SettingAction{
+	actionsRegistry.Register(lib.Responder{
 		Name:        models.MessageGameMode,
 		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
 		Respond:     changeGameMode,
+	})
+
+	actionsRegistry.Register(lib.Responder{
+		Name:        models.MessageTeam,
+		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
+		Respond:     messageChangeButton,
+	})
+
+	actionsRegistry.Register(lib.Responder{
+		Name:        models.MessageCharacterToggle,
+		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
+		Respond:     messageChangeButton,
+	})
+
+	actionsRegistry.Register(lib.Responder{
+		Name:        models.MessageCharacterCount,
+		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
+		Respond:     changeCharacterCount,
+	})
+
+	modalRegistry.Register(lib.Responder{
+		Name:        models.ModalCharacterCount,
+		Authorizers: []lib.Authorizer{authorizors.IsAdmin},
+		Respond:     handleCharacterCount,
 	})
 
 	return nil

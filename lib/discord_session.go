@@ -100,6 +100,8 @@ type DiscordSession interface {
 
 	MessageComplex(channelId string, message *discordgo.MessageSend) error
 
+	MessageEditComplex(message *discordgo.MessageEdit) error
+
 	// Channels gets all channels from the current guild
 	Channels() ([]*discordgo.Channel, error)
 
@@ -123,6 +125,8 @@ type DiscordSession interface {
 
 	// ClearChannelMessagesUnless removes all messages from a channel unless the callback returns true
 	ClearChannelMessagesUnless(channelId string, callback func(*discordgo.Message) (bool, error)) error
+
+	GetMessage(channelId string, messageId string) (*discordgo.Message, error)
 
 	// GetRoles get all current roles for the guild.
 	GetRoles() ([]*discordgo.Role, error)
@@ -201,6 +205,15 @@ type GuildDiscordSession struct {
 	session   *discordgo.Session
 	guildID   string
 	roleCache *InteractionCache[[]*discordgo.Role]
+}
+
+func (l *GuildDiscordSession) GetMessage(channelId string, messageId string) (*discordgo.Message, error) {
+	return l.session.ChannelMessage(channelId, messageId)
+}
+
+func (l *GuildDiscordSession) MessageEditComplex(message *discordgo.MessageEdit) error {
+	_, err := l.session.ChannelMessageEditComplex(message)
+	return err
 }
 
 func (l *GuildDiscordSession) ClearChannelMessagesUnless(channelId string, callback func(*discordgo.Message) (bool, error)) error {

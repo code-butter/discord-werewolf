@@ -17,11 +17,9 @@ import (
 	"gorm.io/gorm"
 )
 
-var DbActionKill = "kill"
-
 func Setup(injector *do.Injector) (err error) {
 	l := do.MustInvoke[*lib.GameListeners](injector)
-	cr := do.MustInvoke[*lib.CommandRegistrar](injector)
+	cr := do.MustInvoke[*lib.CommandRegistry](injector)
 
 	cr.RegisterGlobal(lib.Command{
 		ApplicationCommand: &discordgo.ApplicationCommand{
@@ -79,39 +77,23 @@ func canKill(ia *lib.InteractionArgs) error {
 }
 
 func voteKill(ia *lib.InteractionArgs) error {
-	var result *gorm.DB
 	gormDB := do.MustInvoke[*gorm.DB](ia.Injector)
-	var vote *models.CharacterAction
+	ctx := do.MustInvoke[context.Context](ia.Injector)
 	guildId := ia.Interaction.GuildId()
 	requesterId := ia.Interaction.Requester().ID
-	result = gormDB.
-		Where("guild_id = ? AND user_id = ? AND action = ?", guildId, requesterId, DbActionKill).
-		First(&vote)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			vote = nil
-		} else {
-			return errors.Wrap(result.Error, "failed to find vote")
-		}
+	targetId := ia.Interaction.CommandData().GetOption(lib.ActionOptionKillUser).Value.(string)
+
+	err := models.AddOrUpdateCharacterAction(ctx, gormDB, &models.CharacterAction{
+		GuildId:  guildId,
+		UserId:   requesterId,
+		Action:   lib.ActionKill,
+		TargetId: targetId,
+	})
+	if err != nil {
+		return err
 	}
-	if vote == nil {
-		vote = &models.CharacterAction{
-			GuildId:  guildId,
-			UserId:   requesterId,
-			TargetId: ia.Interaction.CommandData().GetOption(lib.ActionOptionKillUser).Value.(string),
-			Action:   DbActionKill,
-		}
-		result = gormDB.Create(vote)
-	} else {
-		vote.TargetId = ia.Interaction.CommandData().GetOption(lib.ActionOptionKillUser).Value.(string)
-		result = gormDB.Model(&vote).
-			Where("guild_id = ? AND user_id = ? AND action = ?", guildId, requesterId, DbActionKill).
-			Updates(vote)
-	}
-	if result.Error != nil {
-		return errors.Wrap(result.Error, "failed to save vote")
-	}
-	msg := fmt.Sprintf("Voted to kill <@%s>", vote.TargetId)
+
+	msg := fmt.Sprintf("Voted to kill <@%s>", targetId)
 	return ia.Interaction.Respond(msg, false)
 }
 
@@ -154,7 +136,7 @@ func dayStartListener(s *lib.SessionArgs, data lib.DayStartData) error {
 		Select("target_id").
 		Group("target_id").
 		Order("COUNT(*) DESC").
-		Where("guild_id = ? AND action = ?", data.Guild.Id, DbActionKill).
+		Where("guild_id = ? AND action = ?", data.Guild.Id, lib.ActionKill).
 		Limit(1).
 		Pluck("voting_for_id", &voted)
 	if result.Error != nil {
@@ -182,7 +164,7 @@ func dayStartListener(s *lib.SessionArgs, data lib.DayStartData) error {
 		}
 
 		_, err = gorm.G[models.CharacterAction](db).
-			Where("guild_id = ? AND action = ?", data.Guild.Id, DbActionKill).
+			Where("guild_id = ? AND action = ?", data.Guild.Id, lib.ActionKill).
 			Delete(ctx)
 		if err != nil {
 			return errors.Wrap(result.Error, "Could not delete werewolf votes on guild "+data.Guild.Id)

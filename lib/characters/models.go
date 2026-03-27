@@ -7,7 +7,7 @@ type Character struct {
 	GameScore   int
 	Class       string
 	Description string
-	WinCount    bool     // does this member count toward the win conditions?
+	WinCount    bool     // does this member count toward the win conditions for their team?
 	FakeIds     []string // Character IDs that this user could be reported as (for fool, cub, etc.)
 }
 
@@ -20,6 +20,7 @@ type SecondaryCharacter struct {
 }
 
 type Team struct {
-	Id    string
-	Label string
+	Id         string
+	Label      string
+	Characters []Character
 }

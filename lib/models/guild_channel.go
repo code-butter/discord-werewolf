@@ -44,6 +44,12 @@ const MessageGameMode_BalancedSelect = "balanced-select"
 const MessageGameMode_RandomTeams = "random-teams"
 const MessageGameMode_RandomSelect = "random-select"
 
+const MessageTeam = "team"
+const MessageCharacterCount = "character-count"
+const MessageCharacterToggle = "character-toggle"
+
+const ModalCharacterCount = "character-count"
+
 type GuildChannel struct {
 	Id       string // Discord ID
 	Name     string

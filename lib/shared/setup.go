@@ -152,8 +152,9 @@ func SetupInjector() *do.Injector {
 	injector := do.New()
 	do.ProvideValue[*lib.GameListeners](injector, lib.NewGameListeners())
 	do.Provide[*lib.GuildSettings](injector, lib.GameSettingsProvider)
-	do.ProvideValue[*lib.CommandRegistrar](injector, lib.NewCommandRegistrar())
-	do.ProvideValue[*lib.SettingActionRegistrar](injector, lib.NewSettingActionRegistrar())
+	do.ProvideValue[*lib.CommandRegistry](injector, lib.NewCommandRegistrar())
+	do.ProvideNamedValue[*lib.ResponderRegistry](injector, lib.ActionsResponder, lib.NewResponderRegistry())
+	do.ProvideNamedValue[*lib.ResponderRegistry](injector, lib.ModalResponder, lib.NewResponderRegistry())
 	return injector
 }
 

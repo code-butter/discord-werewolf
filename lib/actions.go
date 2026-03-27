@@ -16,3 +16,6 @@ const ActionShowVotersFor = "show_voters_for"
 
 const ActionKill = "kill"
 const ActionOptionKillUser = "user"
+
+const ActionInvestigate = "investigate"
+const ActionOptionInvestigateUser = "user"

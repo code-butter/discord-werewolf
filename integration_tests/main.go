@@ -10,7 +10,7 @@ import (
 )
 
 func CallInteraction(args *lib.SessionArgs, options testlib.TestInteractionOptions) {
-	commandRegistrar := do.MustInvoke[*lib.CommandRegistrar](args.Injector)
+	commandRegistrar := do.MustInvoke[*lib.CommandRegistry](args.Injector)
 	guild, err := args.AppGuild()
 	if err != nil {
 		panic(err)
