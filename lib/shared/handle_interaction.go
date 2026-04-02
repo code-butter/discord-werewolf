@@ -44,11 +44,11 @@ func authorize(args *lib.InteractionArgs, authorizers []lib.Authorizer) error {
 	return nil
 }
 
-func HandleAction(actions map[string]lib.SettingAction, args *lib.InteractionArgs) {
+func HandleResponder(responders map[string]lib.Responder, args *lib.InteractionArgs) {
 	defer responseRecover(args)
 	var err error
 	name := args.Interaction.MessageComponentData().CustomID
-	if action, ok := actions[name]; ok {
+	if action, ok := responders[name]; ok {
 		if err = authorize(args, action.Authorizers); err != nil {
 			return
 		}

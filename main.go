@@ -112,13 +112,13 @@ func main() {
 			args := getInteractionArgs(injector, sessionProvider, i)
 			shared.HandleCommand(commands, args)
 		case discordgo.InteractionMessageComponent:
-			actions := actionsRegistry.GetAll()
+			responders := actionsRegistry.GetAll()
 			args := getInteractionArgs(injector, sessionProvider, i)
-			shared.HandleAction(actions, args)
+			shared.HandleResponder(responders, args)
 		case discordgo.InteractionModalSubmit:
-			actions := modalRegistry.GetAll()
+			responders := modalRegistry.GetAll()
 			args := getInteractionArgs(injector, sessionProvider, i)
-			shared.HandleModal(actions, args)
+			shared.HandleResponder(responders, args)
 		}
 	})
 	if err = discordClient.Open(); err != nil {

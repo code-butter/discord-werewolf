@@ -68,7 +68,12 @@ type TestSession struct {
 	Members       []*discordgo.Member
 }
 
-func (t *TestSession) MessageEditComplex(channelId string, messageId string, message *discordgo.MessageEdit) error {
+func (t *TestSession) MessageEditComplex(message *discordgo.MessageEdit) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t *TestSession) GetMessage(channelId string, messageId string) (*discordgo.Message, error) {
 	//TODO implement me
 	panic("implement me")
 }

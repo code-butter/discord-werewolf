@@ -28,7 +28,27 @@ type TestInteraction struct {
 	channelId   string
 }
 
-func (d *TestInteraction) FollowupMessageEdit(webhookParams *discordgo.WebhookParams) error {
+func (d *TestInteraction) SilentDeferred() error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *TestInteraction) FollowupMessageEdit(edit discordgo.MessageEdit) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *TestInteraction) CustomIdData() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *TestInteraction) Message() *discordgo.Message {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *TestInteraction) ModelSubmitData() discordgo.ModalSubmitInteractionData {
 	//TODO implement me
 	panic("implement me")
 }
